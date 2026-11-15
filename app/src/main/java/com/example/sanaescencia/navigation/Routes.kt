@@ -15,11 +15,6 @@ object Routes {
     const val NEW_RESERVATION = "new_reservation"
     const val RESERVATION_DETAIL = "reservation_detail"
 
-    // Tienda
-    const val SHOP = "shop"
-    const val CATEGORY_PRODUCTS = "category_products"
-    const val PRODUCT_DETAIL = "product_detail"
-
     // Perfil
     const val PROFILE = "profile"
     const val EDIT_PROFILE = "edit_profile"

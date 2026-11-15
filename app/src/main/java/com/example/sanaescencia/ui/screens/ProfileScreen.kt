@@ -1,6 +1,7 @@
 
 package com.example.sanaescencia.ui.screens
 
+import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -16,25 +17,18 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import android.graphics.Bitmap
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.runtime.*
 import androidx.compose.ui.draw.clip
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.core.content.ContextCompat
-import androidx.compose.ui.platform.LocalContext
+import com.example.sanaescencia.ui.components.CameraScreen
+import androidx.compose.ui.graphics.asImageBitmap
 
 private val VerdePerfil = Color(0xFF617A56)
 private val FondoPerfil = Color(0xFFF9F8F6)
@@ -49,24 +43,25 @@ fun ProfileScreen(
     onLogout: () -> Unit = {}
 ) {
 
-    val context = LocalContext.current
-
     var profileImage by remember {
         mutableStateOf<Bitmap?>(null)
     }
 
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview()
-    ) { bitmap ->
-        profileImage = bitmap
+    var mostrarCamara by remember {
+        mutableStateOf(false)
     }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            cameraLauncher.launch(null)
-        }
+    if (mostrarCamara) {
+        CameraScreen(
+            onPhotoCaptured = { bitmap ->
+                profileImage = bitmap
+                mostrarCamara = false
+            },
+            onClose = {
+                mostrarCamara = false
+            }
+        )
+        return
     }
 
     Column(
@@ -99,16 +94,7 @@ fun ProfileScreen(
                 modifier = Modifier
                     .size(100.dp)
                     .clickable {
-                        val permissionGranted = ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.CAMERA
-                        ) == PackageManager.PERMISSION_GRANTED
-
-                        if (permissionGranted) {
-                            cameraLauncher.launch(null)
-                        } else {
-                            permissionLauncher.launch(Manifest.permission.CAMERA)
-                        }
+                        mostrarCamara = true
                     },
                 shape = RoundedCornerShape(20.dp),
                 color = Color(0xFFE6EBE1)
@@ -116,17 +102,16 @@ fun ProfileScreen(
                 Box(
                     contentAlignment = Alignment.Center
                 ) {
-                    if (profileImage != null) {
+                    profileImage?.let { bitmap ->
                         Image(
-
-                            bitmap = profileImage!!.asImageBitmap(),
+                            bitmap = bitmap.asImageBitmap(),
                             contentDescription = "Fotografía de perfil",
                             modifier = Modifier
                                 .fillMaxSize()
                                 .clip(RoundedCornerShape(20.dp)),
                             contentScale = ContentScale.Crop
                         )
-                    } else {
+                    } ?: run {
                         Icon(
                             imageVector = Icons.Default.Person,
                             contentDescription = "Perfil",

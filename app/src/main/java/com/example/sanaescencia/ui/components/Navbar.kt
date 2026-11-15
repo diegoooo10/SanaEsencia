@@ -3,7 +3,6 @@ package com.example.sanaescencia.ui.components
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
@@ -21,7 +20,6 @@ fun Navbar(
 ) {
     val items = listOf(
         Triple(Routes.HOME, "Inicio", Icons.Default.Home),
-        Triple(Routes.SHOP, "Tienda", Icons.Default.ShoppingBag),
         Triple(Routes.RESERVATIONS, "Reservas", Icons.Default.CalendarMonth),
         Triple(Routes.PROFILE, "Perfil", Icons.Default.Person)
     )
@@ -30,7 +28,6 @@ fun Navbar(
         containerColor = MaterialTheme.colorScheme.surface
     ) {
         items.forEach { (route, label, icon) ->
-
             NavigationBarItem(
                 selected = currentRoute == route,
                 onClick = {

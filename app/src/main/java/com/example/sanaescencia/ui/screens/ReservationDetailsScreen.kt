@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.sanaescencia.data.model.Reserva
 
 private val VerdeDetalle = Color(0xFF617A56)
 private val FondoDetalle = Color(0xFFF9F8F6)
@@ -31,11 +32,13 @@ private val RojoCancelacion = Color(0xFFA45D50)
 
 @Composable
 fun ReservationDetailScreen(
+    reserva: Reserva,
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {}
 ) {
-
-    var estado by remember { mutableStateOf("Confirmada") }
+    var estado by remember(reserva.id, reserva.estado) {
+        mutableStateOf(reserva.estado)
+    }
     var mostrarConfirmacion by remember { mutableStateOf(false) }
 
     Column(
@@ -109,14 +112,14 @@ fun ReservationDetailScreen(
                     }
 
                     Text(
-                        text = "Masaje de relajación",
+                        text = reserva.servicio,
                         style = MaterialTheme.typography.headlineSmall,
                         color = TextoDetalle,
                         fontWeight = FontWeight.Bold
                     )
 
                     Text(
-                        text = "Reserva #0001",
+                        text = "Reserva #${reserva.id.toString().padStart(4, '0')}",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.Gray
                     )
@@ -135,31 +138,37 @@ fun ReservationDetailScreen(
                 ReservationInfoRow(
                     icon = Icons.Default.Spa,
                     label = "Especialidad",
-                    value = "Masoterapia"
+                    value = reserva.especialidad
                 )
 
                 ReservationInfoRow(
                     icon = Icons.Default.Person,
                     label = "Profesional",
-                    value = "Profesional A"
+                    value = reserva.profesional
                 )
 
                 ReservationInfoRow(
                     icon = Icons.Default.CalendarMonth,
                     label = "Fecha",
-                    value = "17 de noviembre de 2026"
+                    value = reserva.fecha
                 )
 
                 ReservationInfoRow(
                     icon = Icons.Default.AccessTime,
                     label = "Horario",
-                    value = "16:00 hrs"
+                    value = "${reserva.hora} hrs"
                 )
 
                 ReservationInfoRow(
                     icon = Icons.Default.Timer,
                     label = "Duración",
-                    value = "60 minutos"
+                    value = "${reserva.duracionMinutos} minutos"
+                )
+
+                ReservationInfoRow(
+                    icon = Icons.Default.Info,
+                    label = "Modalidad",
+                    value = reserva.modalidad
                 )
 
                 // Cancelar reserva

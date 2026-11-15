@@ -14,28 +14,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.sanaescencia.ui.components.ReservationConfirmationDialog
+import com.example.sanaescencia.data.model.Especialidad
+import com.example.sanaescencia.data.model.Profesional
+import com.example.sanaescencia.data.model.Servicio
 
 // Modelos de prueba
-
-private data class Specialty(
-    val id: Int,
-    val name: String,
-    val description: String
-)
-
-private data class Professional(
-    val id: Int,
-    val name: String,
-    val specialties: List<Int>
-)
-
-private data class Service(
-    val id: Int,
-    val name: String,
-    val specialtyId: Int,
-    val professionalIds: List<Int>,
-    val duration: Int
-)
 
 private data class ReservationDate(
     val value: String,
@@ -43,25 +26,25 @@ private data class ReservationDate(
 )
 
 private val specialties = listOf(
-    Specialty(1, "Masoterapia", "Terapias y tratamientos corporales"),
-    Specialty(2, "Estética", "Tratamientos de cuidado personal"),
-    Specialty(3, "Terapias integrales", "Bienestar y equilibrio")
+    Especialidad(1, "Masoterapia", "Terapias y tratamientos corporales"),
+    Especialidad(2, "Estética", "Tratamientos de cuidado personal"),
+    Especialidad(3, "Terapias integrales", "Bienestar y equilibrio")
 )
 
 private val professionals = listOf(
-    Professional(1, "Profesional A", listOf(1, 3)),
-    Professional(2, "Profesional B", listOf(1)),
-    Professional(3, "Profesional C", listOf(2)),
-    Professional(4, "Profesional D", listOf(2, 3))
+    Profesional(1, "Profesional A", listOf(1, 3)),
+    Profesional(2, "Profesional B", listOf(1)),
+    Profesional(3, "Profesional C", listOf(2)),
+    Profesional(4, "Profesional D", listOf(2, 3))
 )
 
 private val services = listOf(
-    Service(1, "Masaje de relajación", 1, listOf(1, 2), 60),
-    Service(2, "Masaje descontracturante", 1, listOf(1, 2), 60),
-    Service(3, "Tratamiento facial", 2, listOf(3), 45),
-    Service(4, "Limpieza facial", 2, listOf(3), 60),
-    Service(5, "Terapia de relajación", 3, listOf(1, 4), 60),
-    Service(6, "Terapia integral", 3, listOf(4), 90)
+    Servicio(1, "Masaje de relajación", 1, listOf(1, 2), 60),
+    Servicio(2, "Masaje descontracturante", 1, listOf(1, 2), 60),
+    Servicio(3, "Tratamiento facial", 2, listOf(3), 45),
+    Servicio(4, "Limpieza facial", 2, listOf(3), 60),
+    Servicio(5, "Terapia de relajación", 3, listOf(1, 4), 60),
+    Servicio(6, "Terapia integral", 3, listOf(4), 90)
 )
 
 private val reservationDates = listOf(
@@ -84,9 +67,9 @@ fun NewReservationScreen(
     val verde = Color(0xFF617A56)
     val fondo = Color(0xFFF9F8F6)
 
-    var selectedSpecialty by remember { mutableStateOf<Specialty?>(null) }
-    var selectedProfessional by remember { mutableStateOf<Professional?>(null) }
-    var selectedService by remember { mutableStateOf<Service?>(null) }
+    var selectedSpecialty by remember { mutableStateOf<Especialidad?>(null) }
+    var selectedProfessional by remember { mutableStateOf<Profesional?>(null) }
+    var selectedService by remember { mutableStateOf<Servicio?>(null) }
     var selectedModality by remember { mutableStateOf<String?>(null) }
     var selectedDate by remember { mutableStateOf<ReservationDate?>(null) }
     var selectedHour by remember { mutableStateOf<String?>(null) }
@@ -94,14 +77,14 @@ fun NewReservationScreen(
 
     val filteredProfessionals = professionals.filter {
         selectedSpecialty != null &&
-                selectedSpecialty!!.id in it.specialties
+                selectedSpecialty!!.id in it.especialidadesIds
     }
 
     val filteredServices = services.filter {
         selectedSpecialty != null &&
                 selectedProfessional != null &&
-                it.specialtyId == selectedSpecialty!!.id &&
-                selectedProfessional!!.id in it.professionalIds
+                it.especialidadId == selectedSpecialty!!.id &&
+                selectedProfessional!!.id in it.profesionalesIds
     }
 
     Column(
@@ -134,8 +117,8 @@ fun NewReservationScreen(
 
         specialties.forEach { specialty ->
             SelectionCard(
-                title = specialty.name,
-                description = specialty.description,
+                title = specialty.nombre,
+                description = specialty.descripcion,
                 selected = selectedSpecialty?.id == specialty.id,
                 color = verde,
                 onClick = {
@@ -159,15 +142,15 @@ fun NewReservationScreen(
             SectionTitle("2. Selecciona un profesional")
 
             Text(
-                text = "Profesionales de ${selectedSpecialty!!.name}",
+                text = "Profesionales de ${selectedSpecialty!!.nombre}",
                 color = Color.Gray,
                 style = MaterialTheme.typography.bodySmall
             )
 
             filteredProfessionals.forEach { professional ->
                 SelectionCard(
-                    title = professional.name,
-                    description = "Profesional de ${selectedSpecialty!!.name}",
+                    title = professional.nombre,
+                    description = "Profesional de ${selectedSpecialty!!.nombre}",
                     selected = selectedProfessional?.id == professional.id,
                     color = verde,
                     onClick = {
@@ -192,8 +175,8 @@ fun NewReservationScreen(
 
             filteredServices.forEach { service ->
                 SelectionCard(
-                    title = service.name,
-                    description = "Duración: ${service.duration} minutos",
+                    title = service.nombre,
+                    description = "Duración: ${service.duracionMinutos} minutos",
                     selected = selectedService?.id == service.id,
                     color = verde,
                     onClick = {
@@ -338,11 +321,11 @@ fun NewReservationScreen(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    SummaryRow("Especialidad", selectedSpecialty!!.name)
-                    SummaryRow("Profesional", selectedProfessional!!.name)
-                    SummaryRow("Servicio", selectedService!!.name)
+                    SummaryRow("Especialidad", selectedSpecialty!!.nombre)
+                    SummaryRow("Profesional", selectedProfessional!!.nombre)
+                    SummaryRow("Servicio", selectedService!!.nombre)
                     SummaryRow("Modalidad", selectedModality!!)
-                    SummaryRow("Duración", "${selectedService!!.duration} minutos")
+                    SummaryRow("Duración", "${selectedService!!.duracionMinutos} minutos")
                     SummaryRow("Fecha", selectedDate!!.label)
                     SummaryRow("Hora", selectedHour!!)
                 }
@@ -371,8 +354,8 @@ fun NewReservationScreen(
     // Diálogo de confirmación
     if (showConfirmationDialog) {
         ReservationConfirmationDialog(
-            service = selectedService?.name.orEmpty(),
-            professional = selectedProfessional?.name.orEmpty(),
+            service = selectedService?.nombre.orEmpty(),
+            professional = selectedProfessional?.nombre.orEmpty(),
             date = selectedDate?.label.orEmpty(),
             hour = selectedHour.orEmpty(),
             modality = selectedModality.orEmpty(),

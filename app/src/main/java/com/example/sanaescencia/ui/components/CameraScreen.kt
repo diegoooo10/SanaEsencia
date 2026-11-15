@@ -3,9 +3,6 @@ package com.example.sanaescencia.ui.components
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -20,12 +17,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import java.io.ByteArrayOutputStream
-import java.util.concurrent.Executor
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import java.io.File
+import androidx.exifinterface.media.ExifInterface
+import android.graphics.Matrix
 
 @Composable
 fun CameraScreen(
@@ -61,16 +61,30 @@ fun CameraScreen(
             mutableStateOf<ImageCapture?>(null)
         }
 
+        var cameraProvider by remember {
+            mutableStateOf<ProcessCameraProvider?>(null)
+        }
+
+        DisposableEffect(cameraProvider) {
+            onDispose {
+                cameraProvider?.unbindAll()
+            }
+        }
+
         Box(modifier = Modifier.fillMaxSize()) {
             AndroidView(
                 factory = { ctx ->
-                    val previewView = PreviewView(ctx)
+                    val previewView = PreviewView(ctx).apply {
+                        implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                        scaleType = PreviewView.ScaleType.FILL_CENTER
+                    }
 
                     val cameraProviderFuture =
                         ProcessCameraProvider.getInstance(ctx)
 
                     cameraProviderFuture.addListener({
-                        val cameraProvider = cameraProviderFuture.get()
+                        val provider = cameraProviderFuture.get()
+                        cameraProvider = provider
 
                         val preview = Preview.Builder().build().also {
                             it.surfaceProvider = previewView.surfaceProvider
@@ -84,9 +98,9 @@ fun CameraScreen(
 
                         imageCapture = capture
 
-                        cameraProvider.unbindAll()
+                        provider.unbindAll()
 
-                        cameraProvider.bindToLifecycle(
+                        provider.bindToLifecycle(
                             lifecycleOwner,
                             CameraSelector.DEFAULT_BACK_CAMERA,
                             preview,
@@ -111,49 +125,88 @@ fun CameraScreen(
                     Text("Cancelar")
                 }
 
+
                 Button(
                     onClick = {
                         imageCapture?.let { capture ->
-                            val executor: Executor =
-                                ContextCompat.getMainExecutor(context)
 
-                            val outputStream = ByteArrayOutputStream()
+                            val photoFile = File.createTempFile(
+                                "perfil_",
+                                ".jpg",
+                                context.cacheDir
+                            )
+
+                            val outputOptions = ImageCapture.OutputFileOptions
+                                .Builder(photoFile)
+                                .build()
+
+                            val executor = ContextCompat.getMainExecutor(context)
 
                             capture.takePicture(
+                                outputOptions,
                                 executor,
-                                object : ImageCapture.OnImageCapturedCallback() {
-                                    override fun onCaptureSuccess(
-                                        image: androidx.camera.core.ImageProxy
-                                    ) {
-                                        val buffer = image.planes[0].buffer
-                                        val bytes = ByteArray(buffer.remaining())
-                                        buffer.get(bytes)
 
-                                        val bitmap = BitmapFactory.decodeByteArray(
-                                            bytes,
-                                            0,
-                                            bytes.size
+                                object : ImageCapture.OnImageSavedCallback {
+
+                                    override fun onImageSaved(
+                                        outputFileResults: ImageCapture.OutputFileResults
+                                    ) {
+                                        val bitmap = BitmapFactory.decodeFile(
+                                            photoFile.absolutePath
                                         )
 
-                                        image.close()
-
                                         if (bitmap != null) {
-                                            onPhotoCaptured(bitmap)
+                                            val exif = ExifInterface(photoFile.absolutePath)
+
+                                            val rotation = when (
+                                                exif.getAttributeInt(
+                                                    ExifInterface.TAG_ORIENTATION,
+                                                    ExifInterface.ORIENTATION_NORMAL
+                                                )
+                                            ) {
+                                                ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                                                ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                                                ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                                                else -> 0f
+                                            }
+
+                                            val matrix = Matrix().apply {
+                                                postRotate(rotation)
+                                            }
+
+                                            val correctedBitmap = Bitmap.createBitmap(
+                                                bitmap,
+                                                0,
+                                                0,
+                                                bitmap.width,
+                                                bitmap.height,
+                                                matrix,
+                                                true
+                                            )
+
+                                            onPhotoCaptured(correctedBitmap)
+
+                                            if (correctedBitmap != bitmap) {
+                                                bitmap.recycle()
+                                            }
                                         }
+
+                                        photoFile.delete()
                                     }
 
-                                    override fun onError(
-                                        exception: ImageCaptureException
-                                    ) {
+                                    override fun onError(exception: ImageCaptureException) {
                                         exception.printStackTrace()
+                                        photoFile.delete()
                                     }
                                 }
+
                             )
                         }
                     }
                 ) {
                     Text("Tomar fotografía")
                 }
+
             }
         }
     } else {
