@@ -65,7 +65,7 @@ fun CameraScreen(
             mutableStateOf<ProcessCameraProvider?>(null)
         }
 
-        DisposableEffect(cameraProvider) {
+        DisposableEffect(Unit) {
             onDispose {
                 cameraProvider?.unbindAll()
             }

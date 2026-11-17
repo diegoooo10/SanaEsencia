@@ -28,9 +28,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.sanaescencia.R
+import com.example.sanaescencia.ui.viewmodel.UsuarioViewModel
 
 @Composable
 fun LoginScreen(
+    viewModel: UsuarioViewModel,
     modifier: Modifier = Modifier,
     onLogin: () -> Unit = {},
     onRegister: () -> Unit = {},
@@ -42,6 +44,15 @@ fun LoginScreen(
     var mostrarPassword by remember { mutableStateOf(false) }
 
     val verde = Color(0xFF617A56)
+
+    val loginState by viewModel.loginState.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+
+    LaunchedEffect(loginState) {
+        loginState?.onSuccess {
+            onLogin()
+        }
+    }
 
     Column(
         modifier = modifier
@@ -183,7 +194,12 @@ fun LoginScreen(
         ) {
 
             Button(
-                onClick = onLogin,
+                onClick = {
+                    viewModel.iniciarSesion(correo, password)
+                },
+                enabled = correo.isNotBlank() &&
+                        password.isNotBlank() &&
+                        !isLoading,
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
@@ -194,7 +210,15 @@ fun LoginScreen(
                     vertical = 12.dp
                 )
             ) {
-                Text("Iniciar sesión", maxLines = 1)
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text("Iniciar sesión", maxLines = 1)
+                }
             }
 
             OutlinedButton(
@@ -216,6 +240,17 @@ fun LoginScreen(
                     maxLines = 1
                 )
             }
+        }
+
+        loginState?.onFailure { error ->
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = error.message ?: "No fue posible iniciar sesión",
+                color = MaterialTheme.colorScheme.error,
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center
+            )
         }
 
         Spacer(modifier = Modifier.height(40.dp))

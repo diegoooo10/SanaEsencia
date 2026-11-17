@@ -21,12 +21,16 @@ private val VerdePassword = Color(0xFF617A56)
 private val FondoPassword = Color(0xFFF9F8F6)
 private val TextoPassword = Color(0xFF344B35)
 
+
 @Composable
 fun ChangePasswordScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
-    onSendRecovery: (String) -> Unit = {}
-) {
+    onSendRecovery: (String) -> Unit = {},
+    recuperacionState: Result<Unit>? = null,
+    isLoading: Boolean = false
+)
+ {
 
     var correo by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -116,6 +120,7 @@ fun ChangePasswordScreen(
                     )
                 )
 
+
                 if (errorMessage != null) {
                     Text(
                         text = errorMessage!!,
@@ -123,6 +128,24 @@ fun ChangePasswordScreen(
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
+
+                // Resultado de la solicitud de recuperación
+                recuperacionState?.let { resultado ->
+                    Text(
+                        text = if (resultado.isSuccess) {
+                            "Si el correo está registrado, recibirás un enlace de recuperación."
+                        } else {
+                            "No fue posible enviar la solicitud. Inténtalo nuevamente."
+                        },
+                        color = if (resultado.isSuccess) {
+                            VerdePassword
+                        } else {
+                            Color(0xFFA45D50)
+                        },
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
             }
         }
 
@@ -147,15 +170,26 @@ fun ChangePasswordScreen(
                 }
             },
             modifier = Modifier.fillMaxWidth(),
+            enabled = !isLoading,
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = VerdePassword
             )
         ) {
-            Text(
-                text = "Enviar enlace de recuperación",
-                modifier = Modifier.padding(vertical = 6.dp)
-            )
+
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text(
+                    text = "Enviar enlace de recuperación",
+                    modifier = Modifier.padding(vertical = 6.dp)
+                )
+            }
+
         }
     }
 }

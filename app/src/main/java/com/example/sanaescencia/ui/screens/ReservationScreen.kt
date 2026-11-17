@@ -232,9 +232,10 @@ private fun ReservationCard(
             ReservationDetail(
                 icon = Icons.Default.CalendarMonth,
                 label = "Fecha",
-                value = reserva.fecha
+                value = reserva.fecha.format(
+                    java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")
+                )
             )
-
             ReservationDetail(
                 icon = Icons.Default.AccessTime,
                 label = "Horario",
@@ -268,7 +269,7 @@ private fun ReservationCard(
 }
 
 @Composable
-private fun ReservationDetail(
+fun ReservationDetail(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     value: String

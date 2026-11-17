@@ -24,6 +24,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.sanaescencia.data.model.Reserva
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 private val VerdeDetalle = Color(0xFF617A56)
 private val FondoDetalle = Color(0xFFF9F8F6)
@@ -150,7 +152,10 @@ fun ReservationDetailScreen(
                 ReservationInfoRow(
                     icon = Icons.Default.CalendarMonth,
                     label = "Fecha",
-                    value = reserva.fecha
+                    value = reserva.fecha.format(
+                        DateTimeFormatter.ofPattern("dd 'de' MMMM 'de' yyyy")
+                            .withLocale(java.util.Locale.forLanguageTag("es-CL"))
+                    )
                 )
 
                 ReservationInfoRow(

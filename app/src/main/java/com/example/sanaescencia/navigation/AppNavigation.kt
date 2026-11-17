@@ -26,11 +26,41 @@ import com.example.sanaescencia.ui.screens.ReservationDetailScreen
 import com.example.sanaescencia.ui.screens.ChangePasswordScreen
 import com.example.sanaescencia.ui.screens.NewPasswordScreen
 import com.example.sanaescencia.data.model.Reserva
+import java.time.LocalDate
+import java.time.LocalTime
+
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.sanaescencia.data.remote.RetrofitClient
+import com.example.sanaescencia.data.repository.UsuarioRepositoryImpl
+import com.example.sanaescencia.ui.viewmodel.UsuarioViewModel
+import com.example.sanaescencia.ui.viewmodel.UsuarioViewModelFactory
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 
 @Composable
 fun AppNavigation() {
 
     val navController = rememberNavController()
+
+    val usuarioRepository = remember {
+        UsuarioRepositoryImpl(
+            RetrofitClient.usuarioApiService
+        )
+    }
+
+    val usuarioViewModel: UsuarioViewModel = viewModel(
+        factory = UsuarioViewModelFactory(usuarioRepository)
+    )
+
+    val perfilState by usuarioViewModel.perfilState.collectAsState()
+    val actualizacionState by usuarioViewModel.actualizacionState.collectAsState()
+    val isLoading by usuarioViewModel.isLoading.collectAsState()
+    val recuperacionState by usuarioViewModel.recuperacionState.collectAsState()
+
+    val nombreUsuario = perfilState
+        ?.getOrNull()
+        ?.nombre
+        .orEmpty()
 
     val reservasDemo = remember {
         listOf(
@@ -39,8 +69,8 @@ fun AppNavigation() {
                 especialidad = "Masoterapia",
                 servicio = "Masaje de relajación",
                 profesional = "Profesional A",
-                fecha = "17 de noviembre de 2026",
-                hora = "16:00",
+                fecha = LocalDate.of(2026, 11, 17),
+                hora = LocalTime.of(16, 0),
                 modalidad = "Presencial",
                 estado = "Confirmada",
                 duracionMinutos = 60
@@ -85,6 +115,7 @@ fun AppNavigation() {
             // Autenticación
             composable(Routes.LOGIN) {
                 LoginScreen(
+                    viewModel = usuarioViewModel,
                     onLogin = {
                         navController.navigate(Routes.HOME) {
                             popUpTo(Routes.LOGIN) {
@@ -104,7 +135,9 @@ fun AppNavigation() {
 
             composable(Routes.REGISTER) {
                 RegisterScreen(
+                    viewModel = usuarioViewModel,
                     onLogin = {
+                        usuarioViewModel.limpiarRegistro()
                         navController.popBackStack()
                     }
                 )
@@ -113,6 +146,7 @@ fun AppNavigation() {
             // Inicio
             composable(Routes.HOME) {
                 HomeScreen(
+                    nombreUsuario = nombreUsuario,
                     onViewReservations = {
                         navController.navigate(Routes.RESERVATIONS)
                     },
@@ -170,6 +204,7 @@ fun AppNavigation() {
             // Perfil
             composable(Routes.PROFILE) {
                 ProfileScreen(
+                    usuario = perfilState?.getOrNull(),
                     onEditProfile = {
                         navController.navigate(Routes.EDIT_PROFILE)
                     },
@@ -177,6 +212,8 @@ fun AppNavigation() {
                         navController.navigate(Routes.CHANGE_PASSWORD)
                     },
                     onLogout = {
+                        usuarioViewModel.limpiarLogin()
+
                         navController.navigate(Routes.LOGIN) {
                             popUpTo(Routes.HOME) {
                                 inclusive = true
@@ -187,25 +224,50 @@ fun AppNavigation() {
                 )
             }
 
+            // Editar perfil
             composable(Routes.EDIT_PROFILE) {
-                EditProfileScreen(
-                    onBack = {
+
+                LaunchedEffect(actualizacionState) {
+                    if (actualizacionState?.isSuccess == true) {
+                        usuarioViewModel.limpiarActualizacion()
                         navController.popBackStack()
+                    }
+                }
+
+                EditProfileScreen(
+                    usuario = perfilState?.getOrNull(),
+                    isLoading = isLoading,
+                    error = actualizacionState?.exceptionOrNull()?.message,
+                    onBack = {
+                        usuarioViewModel.limpiarActualizacion()
+                        navController.popBackStack()
+                    },
+                    onSave = { request ->
+                        usuarioViewModel.actualizarPerfil(request)
                     }
                 )
             }
 
             // Recuperación de contraseña
             composable(Routes.CHANGE_PASSWORD) {
+
+                LaunchedEffect(Unit) {
+                    usuarioViewModel.limpiarRecuperacion()
+                }
+
                 ChangePasswordScreen(
+                    recuperacionState = recuperacionState,
+                    isLoading = isLoading,
                     onBack = {
+                        usuarioViewModel.limpiarRecuperacion()
                         navController.popBackStack()
                     },
-                    onSendRecovery = {
-                        // Pendiente: conectar recuperación con backend
+                    onSendRecovery = { correo ->
+                        usuarioViewModel.solicitarRecuperacion(correo)
                     }
                 )
             }
+
 
             composable(Routes.NEW_PASSWORD) {
                 NewPasswordScreen(

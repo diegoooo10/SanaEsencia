@@ -33,6 +33,7 @@ private val FondoTarjeta = Color(0xFFE7EDDF)
 
 @Composable
 fun HomeScreen(
+    nombreUsuario: String,
     modifier: Modifier = Modifier,
     onViewReservations: () -> Unit = {},
     onNewReservation: () -> Unit = {}
@@ -48,7 +49,7 @@ fun HomeScreen(
         // Bienvenida
         Column {
             Text(
-                text = "¡Hola, Camila!",
+                text = "¡Hola, $nombreUsuario!",
                 style = MaterialTheme.typography.headlineMedium,
                 color = VerdeSanaesencia
             )

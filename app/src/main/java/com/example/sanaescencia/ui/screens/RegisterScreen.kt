@@ -29,9 +29,12 @@ import com.example.sanaescencia.R
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.ResolverStyle
+import com.example.sanaescencia.ui.viewmodel.UsuarioViewModel
+import com.example.sanaescencia.data.remote.dto.UsuarioRequest
 
 @Composable
 fun RegisterScreen(
+    viewModel: UsuarioViewModel,
     modifier: Modifier = Modifier,
     onLogin: () -> Unit = {}
 ) {
@@ -48,6 +51,8 @@ fun RegisterScreen(
     var mostrarPassword by remember { mutableStateOf(false) }
     var mostrarConfirmacion by remember { mutableStateOf(false) }
     var validar by remember { mutableStateOf(false) }
+    val registroState by viewModel.registroState.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
 
     val verde = Color(0xFF617A56)
     val fondo = Color(0xFFF9F8F6)
@@ -347,9 +352,25 @@ fun RegisterScreen(
                 validar = true
 
                 if (formularioValido) {
-                    // Pendiente: conectar con el microservicio.
+                    val fechaFormateada = LocalDate.parse(
+                        fechaNacimiento,
+                        DateTimeFormatter.ofPattern("dd-MM-uuuu")
+                    ).toString()
+
+                    val request = UsuarioRequest(
+                        nombre = nombre.trim(),
+                        apellido = apellido.trim(),
+                        correo = correo.trim(),
+                        fechaNacimiento = fechaFormateada,
+                        password = password,
+                        direccion = ciudad.trim().ifBlank { null },
+                        telefono = telefono.trim()
+                    )
+
+                    viewModel.registrar(request)
                 }
             },
+            enabled = !isLoading,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
@@ -359,6 +380,20 @@ fun RegisterScreen(
             Text(
                 text = "Crear cuenta",
                 modifier = Modifier.padding(vertical = 6.dp)
+            )
+        }
+
+        registroState?.onSuccess {
+            Text(
+                text = "Cuenta creada correctamente. Ya puedes iniciar sesión.",
+                color = verde
+            )
+        }
+
+        registroState?.onFailure { error ->
+            Text(
+                text = error.message ?: "No fue posible crear la cuenta.",
+                color = MaterialTheme.colorScheme.error
             )
         }
 

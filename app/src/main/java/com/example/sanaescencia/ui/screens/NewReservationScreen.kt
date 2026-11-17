@@ -32,19 +32,19 @@ private val specialties = listOf(
 )
 
 private val professionals = listOf(
-    Profesional(1, "Profesional A", listOf(1, 3)),
-    Profesional(2, "Profesional B", listOf(1)),
-    Profesional(3, "Profesional C", listOf(2)),
-    Profesional(4, "Profesional D", listOf(2, 3))
+    Profesional(1, "Profesional A", "Masoterapeuta", listOf(1, 3), listOf("Presencial", "Online"), "Disponible"),
+    Profesional(2, "Profesional B", "Masoterapeuta", listOf(1), listOf("Presencial"), "Disponible"),
+    Profesional(3, "Profesional C", "Esteticista", listOf(2), listOf("Presencial"), "Disponible"),
+    Profesional(4, "Profesional D", "Terapeuta integral", listOf(2, 3), listOf("Presencial", "Online"), "Disponible")
 )
 
 private val services = listOf(
-    Servicio(1, "Masaje de relajación", 1, listOf(1, 2), 60),
-    Servicio(2, "Masaje descontracturante", 1, listOf(1, 2), 60),
-    Servicio(3, "Tratamiento facial", 2, listOf(3), 45),
-    Servicio(4, "Limpieza facial", 2, listOf(3), 60),
-    Servicio(5, "Terapia de relajación", 3, listOf(1, 4), 60),
-    Servicio(6, "Terapia integral", 3, listOf(4), 90)
+    Servicio(1, "Masaje de relajación", 1, 60),
+    Servicio(2, "Masaje descontracturante", 1, 60),
+    Servicio(3, "Tratamiento facial", 2, 45),
+    Servicio(4, "Limpieza facial", 2, 60),
+    Servicio(5, "Terapia de relajación", 3, 60),
+    Servicio(6, "Terapia integral", 3, 90)
 )
 
 private val reservationDates = listOf(
@@ -82,9 +82,7 @@ fun NewReservationScreen(
 
     val filteredServices = services.filter {
         selectedSpecialty != null &&
-                selectedProfessional != null &&
-                it.especialidadId == selectedSpecialty!!.id &&
-                selectedProfessional!!.id in it.profesionalesIds
+                it.especialidadId == selectedSpecialty!!.id
     }
 
     Column(

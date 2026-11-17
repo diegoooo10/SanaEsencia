@@ -14,21 +14,35 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.sanaescencia.data.remote.dto.UsuarioResponse
+import com.example.sanaescencia.data.remote.dto.UsuarioUpdateRequest
 
 private val VerdeEditar = Color(0xFF617A56)
 private val FondoEditar = Color(0xFFF9F8F6)
 private val TextoEditar = Color(0xFF344B35)
 
+
 @Composable
 fun EditProfileScreen(
+    usuario: UsuarioResponse?,
     modifier: Modifier = Modifier,
+    isLoading: Boolean = false,
+    error: String? = null,
     onBack: () -> Unit = {},
-    onSave: () -> Unit = {}
+    onSave: (UsuarioUpdateRequest) -> Unit = {}
 ) {
 
-    var correo by remember { mutableStateOf("maria@correo.cl") }
-    var telefono by remember { mutableStateOf("+56 9 1234 5678") }
-    var ciudad by remember { mutableStateOf("Villa Alemana") }
+    var correo by remember(usuario) {
+        mutableStateOf(usuario?.correo.orEmpty())
+    }
+
+    var telefono by remember(usuario) {
+        mutableStateOf(usuario?.telefono.orEmpty())
+    }
+
+    var direccion by remember(usuario) {
+        mutableStateOf(usuario?.direccion.orEmpty())
+    }
 
     Column(
         modifier = modifier
@@ -88,17 +102,21 @@ fun EditProfileScreen(
 
                 // Campos no editables
                 ReadOnlyProfileField(
-                    value = "María",
+                    value = usuario?.nombre ?: "No disponible",
                     label = "Nombre"
                 )
 
                 ReadOnlyProfileField(
-                    value = "González",
+                    value = usuario?.apellido ?: "No disponible",
                     label = "Apellido"
                 )
 
                 ReadOnlyProfileField(
-                    value = "01-01-1995",
+                    value = usuario?.fechaNacimiento
+                        ?.split("-")
+                        ?.takeIf { it.size == 3 }
+                        ?.let { "${it[2]}-${it[1]}-${it[0]}" }
+                        ?: "No disponible",
                     label = "Fecha de nacimiento"
                 )
 
@@ -127,26 +145,51 @@ fun EditProfileScreen(
                 )
 
                 ProfileTextField(
-                    value = ciudad,
-                    onValueChange = { ciudad = it },
-                    label = "Ciudad (opcional)"
+                    value = direccion,
+                    onValueChange = { direccion = it },
+                    label = "Dirección (opcional)"
                 )
             }
         }
 
+        if (error != null) {
+            Text(
+                text = error,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+
         // Guardar cambios
         Button(
-            onClick = onSave,
+            onClick = {
+                onSave(
+                    UsuarioUpdateRequest(
+                        correo = correo.trim(),
+                        telefono = telefono.trim(),
+                        direccion = direccion.trim()
+                    )
+                )
+            },
+            enabled = !isLoading && usuario != null,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = VerdeEditar
             )
         ) {
-            Text(
-                text = "Guardar cambios",
-                modifier = Modifier.padding(vertical = 6.dp)
-            )
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text(
+                    text = "Guardar cambios",
+                    modifier = Modifier.padding(vertical = 6.dp)
+                )
+            }
         }
     }
 }
