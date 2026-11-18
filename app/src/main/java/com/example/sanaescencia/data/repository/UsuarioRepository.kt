@@ -7,6 +7,7 @@ import com.example.sanaescencia.data.remote.dto.UsuarioRequest
 import com.example.sanaescencia.data.remote.dto.UsuarioResponse
 import com.example.sanaescencia.data.remote.dto.UsuarioUpdateRequest
 import com.example.sanaescencia.data.remote.dto.RecuperacionPasswordRequest
+import com.example.sanaescencia.data.remote.dto.RestablecerPasswordRequest
 
 interface UsuarioRepository {
 
@@ -30,6 +31,10 @@ interface UsuarioRepository {
 
     suspend fun solicitarRecuperacion(
         request: RecuperacionPasswordRequest
+    ): Result<Unit>
+
+    suspend fun restablecerPassword(
+        request: RestablecerPasswordRequest
     ): Result<Unit>
 
 }

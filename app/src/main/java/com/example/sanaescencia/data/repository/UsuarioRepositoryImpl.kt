@@ -8,6 +8,7 @@ import com.example.sanaescencia.data.remote.dto.UsuarioRequest
 import com.example.sanaescencia.data.remote.dto.UsuarioResponse
 import com.example.sanaescencia.data.remote.dto.UsuarioUpdateRequest
 import com.example.sanaescencia.data.remote.dto.RecuperacionPasswordRequest
+import com.example.sanaescencia.data.remote.dto.RestablecerPasswordRequest
 
 import kotlinx.coroutines.CancellationException
 import retrofit2.Response
@@ -71,6 +72,26 @@ class UsuarioRepositoryImpl(
     ): Result<Unit> {
         return try {
             val response = api.solicitarRecuperacion(request)
+
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                Result.failure(
+                    Exception("Error HTTP ${response.code()}")
+                )
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun restablecerPassword(
+        request: RestablecerPasswordRequest
+    ): Result<Unit> {
+        return try {
+            val response = api.restablecerPassword(request)
 
             if (response.isSuccessful) {
                 Result.success(Unit)

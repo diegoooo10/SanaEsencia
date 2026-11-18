@@ -17,34 +17,15 @@ import com.example.sanaescencia.ui.components.ReservationConfirmationDialog
 import com.example.sanaescencia.data.model.Especialidad
 import com.example.sanaescencia.data.model.Profesional
 import com.example.sanaescencia.data.model.Servicio
+import com.example.sanaescencia.ui.viewmodel.ReservaViewModel
+import com.example.sanaescencia.data.remote.dto.ReservaRequest
+import java.time.LocalDate
 
 // Modelos de prueba
 
 private data class ReservationDate(
     val value: String,
     val label: String
-)
-
-private val specialties = listOf(
-    Especialidad(1, "Masoterapia", "Terapias y tratamientos corporales"),
-    Especialidad(2, "Estética", "Tratamientos de cuidado personal"),
-    Especialidad(3, "Terapias integrales", "Bienestar y equilibrio")
-)
-
-private val professionals = listOf(
-    Profesional(1, "Profesional A", "Masoterapeuta", listOf(1, 3), listOf("Presencial", "Online"), "Disponible"),
-    Profesional(2, "Profesional B", "Masoterapeuta", listOf(1), listOf("Presencial"), "Disponible"),
-    Profesional(3, "Profesional C", "Esteticista", listOf(2), listOf("Presencial"), "Disponible"),
-    Profesional(4, "Profesional D", "Terapeuta integral", listOf(2, 3), listOf("Presencial", "Online"), "Disponible")
-)
-
-private val services = listOf(
-    Servicio(1, "Masaje de relajación", 1, 60),
-    Servicio(2, "Masaje descontracturante", 1, 60),
-    Servicio(3, "Tratamiento facial", 2, 45),
-    Servicio(4, "Limpieza facial", 2, 60),
-    Servicio(5, "Terapia de relajación", 3, 60),
-    Servicio(6, "Terapia integral", 3, 90)
 )
 
 private val reservationDates = listOf(
@@ -55,17 +36,27 @@ private val reservationDates = listOf(
     ReservationDate("2026-11-21", "Sáb 21")
 )
 
-private val availableHours = listOf(
-    "10:00", "11:30", "14:00", "15:30", "16:00", "17:30"
-)
-
 @Composable
 fun NewReservationScreen(
+    profesionales: List<Profesional>,
+    especialidades: List<Especialidad>,
+    servicios: List<Servicio>,
+    token: String,
+    reservaViewModel: ReservaViewModel,
     modifier: Modifier = Modifier
-) {
+){
 
     val verde = Color(0xFF617A56)
     val fondo = Color(0xFFF9F8F6)
+
+    // Estado de disponibilidad de horarios
+    val horariosState by reservaViewModel.horariosState.collectAsState()
+
+    val isLoadingHorarios by
+    reservaViewModel.isLoadingHorarios.collectAsState()
+
+    val horariosDisponibles =
+        horariosState?.getOrNull().orEmpty()
 
     var selectedSpecialty by remember { mutableStateOf<Especialidad?>(null) }
     var selectedProfessional by remember { mutableStateOf<Profesional?>(null) }
@@ -75,15 +66,16 @@ fun NewReservationScreen(
     var selectedHour by remember { mutableStateOf<String?>(null) }
     var showConfirmationDialog by remember { mutableStateOf(false) }
 
-    val filteredProfessionals = professionals.filter {
-        selectedSpecialty != null &&
-                selectedSpecialty!!.id in it.especialidadesIds
-    }
+val filteredProfessionals = profesionales.filter {
+    selectedSpecialty != null &&
+            selectedSpecialty!!.id in it.especialidadesIds &&
+            it.estadoAgenda == "DISPONIBLE"
+}
 
-    val filteredServices = services.filter {
-        selectedSpecialty != null &&
-                it.especialidadId == selectedSpecialty!!.id
-    }
+val filteredServices = servicios.filter {
+    selectedSpecialty != null &&
+            it.especialidadId == selectedSpecialty!!.id
+}
 
     Column(
         modifier = modifier
@@ -110,10 +102,20 @@ fun NewReservationScreen(
 
         HorizontalDivider(color = Color(0xFFE4E7DF))
 
-        // 1. Especialidad
-        SectionTitle("1. Selecciona una especialidad")
 
-        specialties.forEach { specialty ->
+
+
+    // 1. Especialidad
+    SectionTitle("1. Selecciona una especialidad")
+
+    especialidades
+        .filter { specialty ->
+            profesionales.any { professional ->
+                specialty.id in professional.especialidadesIds &&
+                        professional.estadoAgenda == "DISPONIBLE"
+            }
+        }
+        .forEach { specialty ->
             SelectionCard(
                 title = specialty.nombre,
                 description = specialty.descripcion,
@@ -132,96 +134,94 @@ fun NewReservationScreen(
             )
         }
 
-        // 2. Profesionales filtrados
-        if (selectedSpecialty != null) {
+    // 2. Profesionales
+    if (selectedSpecialty != null) {
 
-            HorizontalDivider(color = Color(0xFFE4E7DF))
+        HorizontalDivider(color = Color(0xFFE4E7DF))
 
-            SectionTitle("2. Selecciona un profesional")
+        SectionTitle("2. Selecciona un profesional")
 
-            Text(
-                text = "Profesionales de ${selectedSpecialty!!.nombre}",
-                color = Color.Gray,
-                style = MaterialTheme.typography.bodySmall
+        Text(
+            text = "Profesionales de ${selectedSpecialty!!.nombre}",
+            color = Color.Gray,
+            style = MaterialTheme.typography.bodySmall
+        )
+
+        filteredProfessionals.forEach { professional ->
+            SelectionCard(
+                title = professional.nombre,
+                description = professional.tituloProfesional,
+                selected = selectedProfessional?.id == professional.id,
+                color = verde,
+                onClick = {
+                    if (selectedProfessional?.id != professional.id) {
+                        selectedProfessional = professional
+                        selectedService = null
+                        selectedModality = null
+                        selectedDate = null
+                        selectedHour = null
+                    }
+                }
             )
-
-            filteredProfessionals.forEach { professional ->
-                SelectionCard(
-                    title = professional.nombre,
-                    description = "Profesional de ${selectedSpecialty!!.nombre}",
-                    selected = selectedProfessional?.id == professional.id,
-                    color = verde,
-                    onClick = {
-                        if (selectedProfessional?.id != professional.id) {
-                            selectedProfessional = professional
-                            selectedService = null
-                            selectedModality = null
-                            selectedDate = null
-                            selectedHour = null
-                        }
-                    }
-                )
-            }
         }
+    }
 
-        // 3. Servicios
-        if (selectedProfessional != null) {
+    // 3. Servicios
+    if (selectedProfessional != null) {
 
-            HorizontalDivider(color = Color(0xFFE4E7DF))
+        HorizontalDivider(color = Color(0xFFE4E7DF))
 
-            SectionTitle("3. Selecciona un servicio")
+        SectionTitle("3. Selecciona un servicio")
 
-            filteredServices.forEach { service ->
-                SelectionCard(
-                    title = service.nombre,
-                    description = "Duración: ${service.duracionMinutos} minutos",
-                    selected = selectedService?.id == service.id,
-                    color = verde,
-                    onClick = {
-                        if (selectedService?.id != service.id) {
-                            selectedService = service
-                            selectedModality = null
-                            selectedDate = null
-                            selectedHour = null
-                        }
+        filteredServices.forEach { service ->
+            SelectionCard(
+                title = service.nombre,
+                description = "Duración: ${service.duracionMinutos} minutos",
+                selected = selectedService?.id == service.id,
+                color = verde,
+                onClick = {
+                    if (selectedService?.id != service.id) {
+                        selectedService = service
+                        selectedModality = null
+                        selectedDate = null
+                        selectedHour = null
                     }
-                )
-            }
+                }
+            )
         }
+    }
 
-        // 4. Modalidad de atención
+
+        // 4. Modalidad
         if (selectedService != null) {
 
             HorizontalDivider(color = Color(0xFFE4E7DF))
 
             SectionTitle("4. Selecciona la modalidad")
 
-            SelectionCard(
-                title = "Presencial",
-                description = "Atención en nuestro centro Sanaesencia",
-                selected = selectedModality == "Presencial",
-                color = verde,
-                onClick = {
-                    selectedModality = "Presencial"
-                    selectedDate = null
-                    selectedHour = null
-                }
-            )
+            selectedProfessional?.modalidades.orEmpty().forEach { modalidad ->
 
-            SelectionCard(
-                title = "Online",
-                description = "Atención mediante videollamada",
-                selected = selectedModality == "Online",
-                color = verde,
-                onClick = {
-                    selectedModality = "Online"
-                    selectedDate = null
-                    selectedHour = null
-                }
-            )
+                SelectionCard(
+                    title = modalidad,
+                    description = if (modalidad == "Online")
+                        "Atención mediante videollamada"
+                    else
+                        "Atención en nuestro centro Sanaesencia",
+                    selected = selectedModality == modalidad,
+                    color = verde,
+                    onClick = {
+                        if (selectedModality != modalidad) {
+                            selectedModality = modalidad
+                            selectedDate = null
+                            selectedHour = null
+                        }
+                    }
+                )
+            }
         }
 
-        // 4. Fecha
+
+        // 5. Fecha
         if (selectedService != null && selectedModality != null) {
 
             HorizontalDivider(color = Color(0xFFE4E7DF))
@@ -241,12 +241,36 @@ fun NewReservationScreen(
                 reservationDates.forEach { date ->
                     FilterChip(
                         selected = selectedDate?.value == date.value,
+
                         onClick = {
                             if (selectedDate?.value != date.value) {
+
                                 selectedDate = date
                                 selectedHour = null
+
+                                reservaViewModel.limpiarHorarios()
+
+                                val profesional = selectedProfessional
+                                val servicio = selectedService
+                                val modalidad = selectedModality
+
+                                if (
+                                    profesional != null &&
+                                    servicio != null &&
+                                    modalidad != null &&
+                                    token.isNotBlank()
+                                ) {
+                                    reservaViewModel.obtenerHorariosDisponibles(
+                                        token = token,
+                                        profesionalId = profesional.id.toLong(),
+                                        servicioId = servicio.id.toLong(),
+                                        fecha = LocalDate.parse(date.value),
+                                        modalidad = modalidad
+                                    )
+                                }
                             }
                         },
+
                         label = {
                             Text(date.label)
                         },
@@ -257,6 +281,8 @@ fun NewReservationScreen(
         }
 
         // 6. Horarios
+
+// 6. Horarios
         if (selectedDate != null) {
 
             Text(
@@ -265,34 +291,77 @@ fun NewReservationScreen(
                 color = Color.Gray
             )
 
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                availableHours.chunked(3).forEach { hours ->
+            when {
+                isLoadingHorarios -> {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        hours.forEach { hour ->
-                            FilterChip(
-                                selected = selectedHour == hour,
-                                onClick = {
-                                    selectedHour = hour
-                                },
-                                label = {
-                                    Text(hour)
-                                },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
+                        CircularProgressIndicator(
+                            color = verde,
+                            modifier = Modifier.size(24.dp)
+                        )
 
-                        repeat(3 - hours.size) {
-                            Spacer(modifier = Modifier.weight(1f))
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Text("Consultando horarios...")
+                    }
+                }
+
+                horariosState?.isFailure == true -> {
+                    Text(
+                        text = horariosState?.exceptionOrNull()?.message
+                            ?: "No se pudieron consultar los horarios.",
+                        color = Color.Red,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+
+                horariosState != null && horariosDisponibles.isEmpty() -> {
+                    Text(
+                        text = "No hay horarios disponibles para esta fecha.",
+                        color = Color.Gray,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+
+                horariosDisponibles.isNotEmpty() -> {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        horariosDisponibles.chunked(3).forEach { hours ->
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                hours.forEach { hour ->
+
+                                    val hourText = hour.toString()
+
+                                    FilterChip(
+                                        selected = selectedHour == hourText,
+                                        onClick = {
+                                            selectedHour = hourText
+                                        },
+                                        label = {
+                                            Text(hourText)
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+
+                                repeat(3 - hours.size) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+
 
         // 7. Resumen
         if (

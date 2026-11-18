@@ -1,14 +1,37 @@
+
 package com.example.sanaescencia.data.repository
 
 import com.example.sanaescencia.data.model.Reserva
+import com.example.sanaescencia.data.remote.dto.ReservaRequest
+import java.time.LocalDate
+import java.time.LocalTime
 
 interface ReservaRepository {
 
-    suspend fun obtenerReservas(): Result<List<Reserva>>
+    suspend fun obtenerHorariosDisponibles(
+        token: String,
+        profesionalId: Long,
+        servicioId: Long,
+        fecha: LocalDate,
+        modalidad: String
+    ): Result<List<LocalTime>>
 
-    suspend fun obtenerReservaPorId(id: Int): Result<Reserva>
+    suspend fun obtenerReservas(
+        token: String
+    ): Result<List<Reserva>>
 
-    suspend fun crearReserva(reserva: Reserva): Result<Reserva>
+    suspend fun obtenerReservaPorId(
+        token: String,
+        id: Long
+    ): Result<Reserva>
 
-    suspend fun cancelarReserva(id: Int): Result<Unit>
+    suspend fun crearReserva(
+        token: String,
+        request: ReservaRequest
+    ): Result<Reserva>
+
+    suspend fun cancelarReserva(
+        token: String,
+        id: Long
+    ): Result<Unit>
 }

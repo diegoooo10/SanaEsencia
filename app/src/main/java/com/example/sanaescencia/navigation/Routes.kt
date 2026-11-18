@@ -22,4 +22,5 @@ object Routes {
     // Recuperación de contraseña
     const val CHANGE_PASSWORD = "change_password"
     const val NEW_PASSWORD = "new_password"
+    const val NEW_PASSWORD_WITH_TOKEN = "new_password?token={token}"
 }

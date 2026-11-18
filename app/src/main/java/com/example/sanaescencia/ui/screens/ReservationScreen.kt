@@ -29,7 +29,7 @@ fun ReservationScreen(
     reservas: List<Reserva> = emptyList(),
     modifier: Modifier = Modifier,
     onNewReservation: () -> Unit = {},
-    onReservationDetails: (Int) -> Unit = {}
+    onReservationDetails: (Long) -> Unit = {}
 ) {
 
     var selectedTab by remember { mutableIntStateOf(0) }

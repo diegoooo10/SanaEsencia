@@ -26,7 +26,9 @@ private val TextoNuevaPassword = Color(0xFF344B35)
 fun NewPasswordScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
-    onSave: (String) -> Unit = {}
+    onSave: (String) -> Unit = {},
+    restablecimientoState: Result<Unit>? = null,
+    isLoading: Boolean = false
 ) {
 
     var newPassword by remember { mutableStateOf("") }
@@ -101,6 +103,7 @@ fun NewPasswordScreen(
                         newPassword = it
                         errorMessage = null
                     },
+
                     label = "Nueva contraseña",
                     visible = showNewPassword,
                     onVisibilityChange = {
@@ -129,10 +132,28 @@ fun NewPasswordScreen(
                 )
 
                 // Mensaje de error
+                // Mensaje de error
                 if (errorMessage != null) {
                     Text(
                         text = errorMessage!!,
                         color = Color(0xFFA45D50),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                // Resultado del restablecimiento
+                restablecimientoState?.let { resultado ->
+                    Text(
+                        text = if (resultado.isSuccess) {
+                            "Tu contraseña fue actualizada correctamente."
+                        } else {
+                            "No fue posible restablecer la contraseña. El enlace puede ser inválido o haber expirado."
+                        },
+                        color = if (resultado.isSuccess) {
+                            VerdeNuevaPassword
+                        } else {
+                            Color(0xFFA45D50)
+                        },
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -164,15 +185,24 @@ fun NewPasswordScreen(
                 }
             },
             modifier = Modifier.fillMaxWidth(),
+            enabled = !isLoading && restablecimientoState?.isSuccess != true,
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = VerdeNuevaPassword
             )
         ) {
-            Text(
-                text = "Guardar nueva contraseña",
-                modifier = Modifier.padding(vertical = 6.dp)
-            )
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text(
+                    text = "Guardar nueva contraseña",
+                    modifier = Modifier.padding(vertical = 6.dp)
+                )
+            }
         }
     }
 }

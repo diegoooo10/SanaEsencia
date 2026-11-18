@@ -1,10 +1,13 @@
+
 package com.example.sanaescencia.data.model
 
 import java.time.LocalDate
 import java.time.LocalTime
 
 data class Reserva(
-    val id: Int,
+    val id: Long,
+    val profesionalId: Long,
+    val servicioId: Long,
     val especialidad: String,
     val servicio: String,
     val profesional: String,

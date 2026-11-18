@@ -15,6 +15,7 @@ import com.example.sanaescencia.data.remote.dto.UsuarioResponse
 import com.example.sanaescencia.data.remote.dto.UsuarioRequest
 import com.example.sanaescencia.data.remote.dto.UsuarioUpdateRequest
 import com.example.sanaescencia.data.remote.dto.RecuperacionPasswordRequest
+import com.example.sanaescencia.data.remote.dto.RestablecerPasswordRequest
 
 class UsuarioViewModel(
     private val repository: UsuarioRepository
@@ -62,6 +63,13 @@ class UsuarioViewModel(
 
     val recuperacionState: StateFlow<Result<Unit>?> =
         _recuperacionState.asStateFlow()
+
+    // Estado de restablecimiento de contraseña
+    private val _restablecimientoState =
+        MutableStateFlow<Result<Unit>?>(null)
+
+    val restablecimientoState: StateFlow<Result<Unit>?> =
+        _restablecimientoState.asStateFlow()
 
     // Iniciar sesión
     fun iniciarSesion(correo: String, password: String) {
@@ -210,6 +218,37 @@ class UsuarioViewModel(
 
     fun limpiarRecuperacion() {
         _recuperacionState.value = null
+    }
+
+    fun restablecerPassword(token: String, nuevaPassword: String) {
+
+        if (_isLoading.value) return
+
+        viewModelScope.launch {
+            _isLoading.value = true
+            _restablecimientoState.value = null
+
+            try {
+                val request = RestablecerPasswordRequest(
+                    token = token,
+                    nuevaPassword = nuevaPassword
+                )
+
+                _restablecimientoState.value =
+                    repository.restablecerPassword(request)
+
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _restablecimientoState.value = Result.failure(e)
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun limpiarRestablecimiento() {
+        _restablecimientoState.value = null
     }
 
 }

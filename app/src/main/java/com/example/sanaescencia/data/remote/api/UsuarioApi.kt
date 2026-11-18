@@ -7,6 +7,7 @@ import com.example.sanaescencia.data.remote.dto.UsuarioRequest
 import com.example.sanaescencia.data.remote.dto.UsuarioResponse
 import com.example.sanaescencia.data.remote.dto.UsuarioUpdateRequest
 import com.example.sanaescencia.data.remote.dto.RecuperacionPasswordRequest
+import com.example.sanaescencia.data.remote.dto.RestablecerPasswordRequest
 
 import retrofit2.Response
 import retrofit2.http.Body
@@ -42,4 +43,9 @@ interface UsuarioApiService {
         @Header("Authorization") token: String,
         @Body request: UsuarioUpdateRequest
     ): Response<UsuarioResponse>
+
+    @POST("api/usuarios/password/restablecer")
+    suspend fun restablecerPassword(
+        @Body request: RestablecerPasswordRequest
+    ): Response<okhttp3.ResponseBody>
 }
