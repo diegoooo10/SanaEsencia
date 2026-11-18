@@ -25,6 +25,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import com.example.sanaescencia.R
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -41,8 +43,8 @@ fun RegisterScreen(
 
     var nombre by remember { mutableStateOf("") }
     var apellido by remember { mutableStateOf("") }
-    var telefono by remember { mutableStateOf("+56 9 ") }
-    var fechaNacimiento by remember { mutableStateOf("") }
+    var telefono by remember { mutableStateOf("") }
+    var fechaNacimiento by remember { mutableStateOf(TextFieldValue("")) }
     var ciudad by remember { mutableStateOf("") }
     var correo by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -51,8 +53,27 @@ fun RegisterScreen(
     var mostrarPassword by remember { mutableStateOf(false) }
     var mostrarConfirmacion by remember { mutableStateOf(false) }
     var validar by remember { mutableStateOf(false) }
+    var mostrarDialogoRegistro by remember { mutableStateOf(false) }
     val registroState by viewModel.registroState.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+
+    LaunchedEffect(registroState) {
+        if (registroState?.isSuccess == true) {
+
+            nombre = ""
+            apellido = ""
+            telefono = ""
+            fechaNacimiento = TextFieldValue("")
+            ciudad = ""
+            correo = ""
+            password = ""
+            confirmarPassword = ""
+
+            validar = false
+
+            mostrarDialogoRegistro = true
+        }
+    }
 
     val verde = Color(0xFF617A56)
     val fondo = Color(0xFFF9F8F6)
@@ -62,7 +83,7 @@ fun RegisterScreen(
             .ofPattern("dd-MM-uuuu")
             .withResolverStyle(ResolverStyle.STRICT)
 
-        val fecha = LocalDate.parse(fechaNacimiento, formato)
+        val fecha = LocalDate.parse(fechaNacimiento.text, formato)
 
         !fecha.isAfter(LocalDate.now().minusYears(18))
     } catch (e: Exception) {
@@ -70,7 +91,7 @@ fun RegisterScreen(
     }
 
     val telefonoValido = Regex(
-        """^\+56 9 \d{8}$"""
+        """^\d{8}$"""
     ).matches(telefono)
 
     val correoValido = Regex(
@@ -90,6 +111,7 @@ fun RegisterScreen(
         modifier = modifier
             .fillMaxSize()
             .background(fondo)
+            .imePadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -177,17 +199,27 @@ fun RegisterScreen(
 
         OutlinedTextField(
             value = telefono,
-            onValueChange = { telefono = it },
+            onValueChange = { nuevoValor ->
+                telefono = nuevoValor.filter { it.isDigit() }.take(8)
+            },
             label = { Text("Teléfono") },
-            placeholder = { Text("+56 9 XXXXXXXX") },
+            placeholder = { Text("12345678") },
+            leadingIcon = {
+                Text(
+                    text = "+56 9",
+                    fontWeight = FontWeight.SemiBold,
+                    color = verde,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            },
             singleLine = true,
             keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Phone
+                keyboardType = KeyboardType.Number
             ),
             isError = validar && !telefonoValido,
             supportingText = {
                 if (validar && !telefonoValido) {
-                    Text("Formato: +56 9 seguido de 8 dígitos.")
+                    Text("Ingresa los 8 dígitos de tu teléfono.")
                 }
             },
             modifier = Modifier.fillMaxWidth(),
@@ -198,7 +230,45 @@ fun RegisterScreen(
 
         OutlinedTextField(
             value = fechaNacimiento,
-            onValueChange = { fechaNacimiento = it },
+            onValueChange = { nuevoValor ->
+
+                val digitos = nuevoValor.text
+                    .filter { it.isDigit() }
+                    .take(8)
+
+                val fechaFormateada = when {
+                    digitos.length >= 4 ->
+                        "${digitos.substring(0, 2)}-${digitos.substring(2, 4)}-${digitos.substring(4)}"
+
+                    digitos.length >= 2 ->
+                        "${digitos.substring(0, 2)}-${digitos.substring(2)}"
+
+                    else -> digitos
+                }
+
+                fun posicionCursor(posicionOriginal: Int): Int {
+                    val digitosAntes = nuevoValor.text
+                        .take(posicionOriginal)
+                        .count { it.isDigit() }
+                        .coerceAtMost(digitos.length)
+
+                    val posicion = when {
+                        digitosAntes <= 1 -> digitosAntes
+                        digitosAntes <= 3 -> digitosAntes + 1
+                        else -> digitosAntes + 2
+                    }
+
+                    return posicion.coerceAtMost(fechaFormateada.length)
+                }
+
+                fechaNacimiento = TextFieldValue(
+                    text = fechaFormateada,
+                    selection = TextRange(
+                        posicionCursor(nuevoValor.selection.start),
+                        posicionCursor(nuevoValor.selection.end)
+                    )
+                )
+            },
             label = { Text("Fecha de nacimiento") },
             placeholder = { Text("DD-MM-AAAA") },
             singleLine = true,
@@ -353,7 +423,7 @@ fun RegisterScreen(
 
                 if (formularioValido) {
                     val fechaFormateada = LocalDate.parse(
-                        fechaNacimiento,
+                        fechaNacimiento.text,
                         DateTimeFormatter.ofPattern("dd-MM-uuuu")
                     ).toString()
 
@@ -364,7 +434,7 @@ fun RegisterScreen(
                         fechaNacimiento = fechaFormateada,
                         password = password,
                         direccion = ciudad.trim().ifBlank { null },
-                        telefono = telefono.trim()
+                        telefono = "+56 9 $telefono"
                     )
 
                     viewModel.registrar(request)
@@ -380,13 +450,6 @@ fun RegisterScreen(
             Text(
                 text = "Crear cuenta",
                 modifier = Modifier.padding(vertical = 6.dp)
-            )
-        }
-
-        registroState?.onSuccess {
-            Text(
-                text = "Cuenta creada correctamente. Ya puedes iniciar sesión.",
-                color = verde
             )
         }
 
@@ -413,5 +476,38 @@ fun RegisterScreen(
         }
 
         Spacer(modifier = Modifier.height(32.dp))
+    }
+
+    // Confirmación de registro exitoso
+    if (mostrarDialogoRegistro) {
+        AlertDialog(
+            onDismissRequest = {
+                // El usuario debe confirmar para continuar
+            },
+            title = {
+                Text(
+                    text = "¡Cuenta creada!",
+                    color = Color(0xFF344B35),
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text("Tu cuenta se creó correctamente.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        mostrarDialogoRegistro = false
+                        onLogin()
+                    }
+                ) {
+                    Text(
+                        text = "Aceptar",
+                        color = verde
+                    )
+                }
+            },
+            containerColor = Color.White
+        )
     }
 }
