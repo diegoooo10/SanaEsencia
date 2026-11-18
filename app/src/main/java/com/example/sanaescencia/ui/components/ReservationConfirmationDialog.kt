@@ -18,7 +18,8 @@ fun ReservationConfirmationDialog(
     date: String,
     hour: String,
     modality: String,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -43,7 +44,7 @@ fun ReservationConfirmationDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = onConfirm) {
                 Text(
                     text = "Aceptar",
                     color = Color(0xFF617A56)

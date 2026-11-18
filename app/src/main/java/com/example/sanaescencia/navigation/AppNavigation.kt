@@ -43,6 +43,20 @@ import com.example.sanaescencia.data.repository.ReservaRepositoryImpl
 import com.example.sanaescencia.ui.viewmodel.ReservaViewModel
 import com.example.sanaescencia.ui.viewmodel.ReservaViewModelFactory
 
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.tween
+
+private fun obtenerOrdenRuta(route: String?): Int {
+    return when (route) {
+        Routes.HOME -> 0
+        Routes.RESERVATIONS -> 1
+        Routes.PROFILE -> 2
+        else -> -1
+    }
+}
 @Composable
 fun AppNavigation(
     recoveryToken: String? = null
@@ -120,6 +134,8 @@ fun AppNavigation(
     val reservasState by
     reservaViewModel.reservasState.collectAsState()
 
+    val cancelacionState by reservaViewModel.cancelacionState.collectAsState()
+
     val reservas = reservasState?.getOrNull().orEmpty()
 
     LaunchedEffect(token) {
@@ -150,6 +166,22 @@ fun AppNavigation(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
+    LaunchedEffect(currentRoute, token) {
+        if (currentRoute == Routes.RESERVATIONS && !token.isNullOrBlank()) {
+            reservaViewModel.obtenerReservas(token!!)
+        }
+    }
+
+    LaunchedEffect(cancelacionState) {
+        if (cancelacionState?.isSuccess == true) {
+            reservaViewModel.limpiarCancelacion()
+
+            if (!token.isNullOrBlank()) {
+                reservaViewModel.obtenerReservas(token!!)
+            }
+        }
+    }
+
     val mainRoutes = listOf(
         Routes.HOME,
         Routes.RESERVATIONS,
@@ -178,8 +210,65 @@ fun AppNavigation(
         NavHost(
             navController = navController,
             startDestination = Routes.LOGIN,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding),
+
+            enterTransition = {
+                val initialOrder = obtenerOrdenRuta(initialState.destination.route)
+                val targetOrder = obtenerOrdenRuta(targetState.destination.route)
+
+                val haciaIzquierda = initialOrder < targetOrder
+
+                fadeIn(tween(250)) + slideInHorizontally(
+                    initialOffsetX = {
+                        if (haciaIzquierda) it / 12 else -it / 12
+                    },
+                    animationSpec = tween(250)
+                )
+            },
+
+            exitTransition = {
+                val initialOrder = obtenerOrdenRuta(initialState.destination.route)
+                val targetOrder = obtenerOrdenRuta(targetState.destination.route)
+
+                val haciaIzquierda = initialOrder < targetOrder
+
+                fadeOut(tween(200)) + slideOutHorizontally(
+                    targetOffsetX = {
+                        if (haciaIzquierda) -it / 12 else it / 12
+                    },
+                    animationSpec = tween(200)
+                )
+            },
+
+            popEnterTransition = {
+                val initialOrder = obtenerOrdenRuta(initialState.destination.route)
+                val targetOrder = obtenerOrdenRuta(targetState.destination.route)
+
+                val haciaIzquierda = initialOrder < targetOrder
+
+                fadeIn(tween(250)) + slideInHorizontally(
+                    initialOffsetX = {
+                        if (haciaIzquierda) it / 12 else -it / 12
+                    },
+                    animationSpec = tween(250)
+                )
+            },
+
+            popExitTransition = {
+                val initialOrder = obtenerOrdenRuta(initialState.destination.route)
+                val targetOrder = obtenerOrdenRuta(targetState.destination.route)
+
+                val haciaIzquierda = initialOrder < targetOrder
+
+                fadeOut(tween(200)) + slideOutHorizontally(
+                    targetOffsetX = {
+                        if (haciaIzquierda) -it / 12 else it / 12
+                    },
+                    animationSpec = tween(200)
+                )
+            }
         ) {
+
 
             // Autenticación
             composable(Routes.LOGIN) {
@@ -214,10 +303,24 @@ fun AppNavigation(
 
             // Inicio
             composable(Routes.HOME) {
+
+                LaunchedEffect(Unit) {
+                    if (!token.isNullOrBlank()) {
+                        reservaViewModel.obtenerReservas(token!!)
+                    }
+                }
+
                 HomeScreen(
                     nombreUsuario = nombreUsuario,
+                    reservas = reservas,
                     onViewReservations = {
-                        navController.navigate(Routes.RESERVATIONS)
+                        navController.navigate(Routes.RESERVATIONS) {
+                            popUpTo(Routes.HOME) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     },
                     onNewReservation = {
                         navController.navigate(Routes.NEW_RESERVATION)
@@ -246,7 +349,14 @@ fun AppNavigation(
                     especialidades = especialidadesState?.getOrNull().orEmpty(),
                     servicios = serviciosState?.getOrNull().orEmpty(),
                     token = token.orEmpty(),
-                    reservaViewModel = reservaViewModel
+                    reservaViewModel = reservaViewModel,
+                    onReservationConfirmed = {
+                        navController.navigate(Routes.HOME) {
+                            popUpTo(Routes.NEW_RESERVATION) {
+                                inclusive = true
+                            }
+                        }
+                    }
                 )
             }
 
@@ -271,6 +381,12 @@ fun AppNavigation(
                         reserva = reserva,
                         onBack = {
                             navController.popBackStack()
+                        },
+                        onCancel = {
+                            reservaViewModel.cancelarReserva(
+                                token = token.orEmpty(),
+                                id = reserva.id
+                            )
                         }
                     )
                 }

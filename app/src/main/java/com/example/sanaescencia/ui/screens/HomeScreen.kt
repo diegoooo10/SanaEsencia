@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CalendarToday
@@ -27,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.example.sanaescencia.data.model.Reserva
 
 private val VerdeSanaesencia = Color(0xFF526C49)
 private val FondoTarjeta = Color(0xFFE7EDDF)
@@ -34,14 +37,31 @@ private val FondoTarjeta = Color(0xFFE7EDDF)
 @Composable
 fun HomeScreen(
     nombreUsuario: String,
+    reservas: List<Reserva> = emptyList(),
     modifier: Modifier = Modifier,
     onViewReservations: () -> Unit = {},
     onNewReservation: () -> Unit = {}
 ) {
+
+    val proximaReserva = reservas
+        .filter {
+            it.estado.equals("Confirmada", ignoreCase = true) ||
+                    it.estado.equals("Pendiente", ignoreCase = true)
+        }
+        .filter {
+            !it.fecha.isBefore(java.time.LocalDate.now())
+        }
+        .sortedWith(
+            compareBy<Reserva> { it.fecha }
+                .thenBy { it.hora }
+        )
+        .firstOrNull()
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
@@ -62,49 +82,100 @@ fun HomeScreen(
         }
 
         // Próxima reserva
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = FondoTarjeta
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+        if (proximaReserva != null) {
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = FondoTarjeta
+                )
             ) {
-                Text(
-                    text = "PRÓXIMA RESERVA",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = VerdeSanaesencia
-                )
-
-                Text(
-                    text = "Masaje de relajación",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = VerdeSanaesencia
-                )
-
-                ReservationDetail(
-                    icon = Icons.Default.CalendarToday,
-                    text = "Martes 17 de noviembre"
-                )
-
-                ReservationDetail(
-                    icon = Icons.Default.AccessTime,
-                    text = "16:00 horas"
-                )
-
-                ReservationDetail(
-                    icon = Icons.Default.LocationOn,
-                    text = "Centro Sanaesencia"
-                )
-
-                Button(
-                    onClick = onViewReservations,
-                    modifier = Modifier.fillMaxWidth()
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Ver mi reserva")
+
+                    Text(
+                        text = "PRÓXIMA RESERVA",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = VerdeSanaesencia
+                    )
+
+                    Text(
+                        text = proximaReserva.servicio,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = VerdeSanaesencia
+                    )
+
+                    ReservationDetail(
+                        icon = Icons.Default.CalendarToday,
+                        text = proximaReserva.fecha.format(
+                            java.time.format.DateTimeFormatter.ofPattern(
+                                "EEEE dd 'de' MMMM",
+                                java.util.Locale("es", "CL")
+                            )
+                        )
+                    )
+
+                    ReservationDetail(
+                        icon = Icons.Default.AccessTime,
+                        text = "${proximaReserva.hora} horas"
+                    )
+
+                    ReservationDetail(
+                        icon = Icons.Default.LocationOn,
+                        text = proximaReserva.modalidad
+                    )
+
+                    Button(
+                        onClick = onViewReservations,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Ver mi reserva")
+                    }
+                }
+            }
+
+        } else {
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = FondoTarjeta
+                ),
+                onClick = onNewReservation
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+
+                    Text(
+                        text = "¿TIENES GANAS DE UNA NUEVA SESIÓN?",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = VerdeSanaesencia
+                    )
+
+                    Text(
+                        text = "Realiza una nueva reserva",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = VerdeSanaesencia
+                    )
+
+                    Text(
+                        text = "Agenda tu próxima sesión con nuestros profesionales.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+
+                    Button(
+                        onClick = onNewReservation,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Nueva reserva")
+                    }
                 }
             }
         }

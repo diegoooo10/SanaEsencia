@@ -43,7 +43,8 @@ fun NewReservationScreen(
     servicios: List<Servicio>,
     token: String,
     reservaViewModel: ReservaViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onReservationConfirmed: () -> Unit = {}
 ){
 
     val verde = Color(0xFF617A56)
@@ -54,10 +55,10 @@ fun NewReservationScreen(
 
     val isLoadingHorarios by
     reservaViewModel.isLoadingHorarios.collectAsState()
-
     val horariosDisponibles =
         horariosState?.getOrNull().orEmpty()
-
+    val crearReservaState by reservaViewModel.crearReservaState.collectAsState()
+    val isLoadingCrear by reservaViewModel.isLoadingCrear.collectAsState()
     var selectedSpecialty by remember { mutableStateOf<Especialidad?>(null) }
     var selectedProfessional by remember { mutableStateOf<Profesional?>(null) }
     var selectedService by remember { mutableStateOf<Servicio?>(null) }
@@ -65,6 +66,16 @@ fun NewReservationScreen(
     var selectedDate by remember { mutableStateOf<ReservationDate?>(null) }
     var selectedHour by remember { mutableStateOf<String?>(null) }
     var showConfirmationDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        reservaViewModel.limpiarCreacion()
+    }
+
+    LaunchedEffect(crearReservaState) {
+        crearReservaState?.onSuccess {
+            showConfirmationDialog = true
+        }
+    }
 
 val filteredProfessionals = profesionales.filter {
     selectedSpecialty != null &&
@@ -400,8 +411,35 @@ val filteredServices = servicios.filter {
 
             Button(
                 onClick = {
-                    showConfirmationDialog = true
+                    val profesional = selectedProfessional
+                    val servicio = selectedService
+                    val fecha = selectedDate
+                    val hora = selectedHour
+                    val modalidad = selectedModality
+
+                    if (
+                        profesional != null &&
+                        servicio != null &&
+                        fecha != null &&
+                        hora != null &&
+                        modalidad != null &&
+                        token.isNotBlank()
+                    ) {
+                        val request = ReservaRequest(
+                            profesionalId = profesional.id.toLong(),
+                            servicioId = servicio.id.toLong(),
+                            fecha = fecha.value,
+                            hora = hora,
+                            modalidad = modalidad
+                        )
+
+                        reservaViewModel.crearReserva(
+                            token = token,
+                            request = request
+                        )
+                    }
                 },
+                enabled = !isLoadingCrear,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
@@ -428,6 +466,10 @@ val filteredServices = servicios.filter {
             modality = selectedModality.orEmpty(),
             onDismiss = {
                 showConfirmationDialog = false
+            },
+            onConfirm = {
+                showConfirmationDialog = false
+                onReservationConfirmed()
             }
         )
     }

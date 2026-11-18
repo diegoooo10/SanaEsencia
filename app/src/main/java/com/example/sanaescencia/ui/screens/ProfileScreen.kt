@@ -2,6 +2,7 @@
     package com.example.sanaescencia.ui.screens
 
     import android.graphics.Bitmap
+    import android.graphics.BitmapFactory
     import androidx.compose.foundation.background
     import androidx.compose.foundation.layout.*
     import androidx.compose.foundation.rememberScrollState
@@ -30,6 +31,11 @@
     import com.example.sanaescencia.ui.components.CameraScreen
     import androidx.compose.ui.graphics.asImageBitmap
     import com.example.sanaescencia.data.remote.dto.UsuarioResponse
+    import androidx.compose.ui.platform.LocalContext
+    import kotlinx.coroutines.Dispatchers
+    import kotlinx.coroutines.launch
+    import kotlinx.coroutines.withContext
+    import java.io.File
 
     private val VerdePerfil = Color(0xFF617A56)
     private val FondoPerfil = Color(0xFFF9F8F6)
@@ -45,6 +51,9 @@
         onLogout: () -> Unit = {}
     ) {
 
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
+
         var profileImage by remember {
             mutableStateOf<Bitmap?>(null)
         }
@@ -53,11 +62,50 @@
             mutableStateOf(false)
         }
 
+        var mostrarDialogoEliminar by remember {
+            mutableStateOf(false)
+        }
+
+        // Recuperar fotografía guardada
+        LaunchedEffect(Unit) {
+            val imageFile = File(context.filesDir, "foto_perfil.jpg")
+
+            if (imageFile.exists()) {
+                profileImage = withContext(Dispatchers.IO) {
+                    BitmapFactory.decodeFile(imageFile.absolutePath)
+                }
+            }
+        }
+
         if (mostrarCamara) {
             CameraScreen(
                 onPhotoCaptured = { bitmap ->
-                    profileImage = bitmap
-                    mostrarCamara = false
+
+                    scope.launch {
+                        val imageFile = File(
+                            context.filesDir,
+                            "foto_perfil.jpg"
+                        )
+
+                        val guardado = withContext(Dispatchers.IO) {
+                            runCatching {
+                                imageFile.outputStream().use { output ->
+                                    check(
+                                        bitmap.compress(
+                                            Bitmap.CompressFormat.JPEG,
+                                            90,
+                                            output
+                                        )
+                                    )
+                                }
+                            }.isSuccess
+                        }
+
+                        if (guardado) {
+                            profileImage = bitmap
+                            mostrarCamara = false
+                        }
+                    }
                 },
                 onClose = {
                     mostrarCamara = false
@@ -121,6 +169,20 @@
                                 modifier = Modifier.size(42.dp)
                             )
                         }
+                    }
+                }
+
+                // Eliminar fotografía
+                if (profileImage != null) {
+                    TextButton(
+                        onClick = {
+                            mostrarDialogoEliminar = true
+                        }
+                    ) {
+                        Text(
+                            text = "Eliminar fotografía",
+                            color = RojoPerfil
+                        )
                     }
                 }
 
@@ -291,6 +353,50 @@
                 }
             }
         }
+        // Confirmación para eliminar fotografía
+        if (mostrarDialogoEliminar) {
+            AlertDialog(
+                onDismissRequest = {
+                    mostrarDialogoEliminar = false
+                },
+                title = {
+                    Text("Eliminar fotografía")
+                },
+                text = {
+                    Text(
+                        "¿Estás seguro de que deseas eliminar tu fotografía de perfil?"
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                withContext(Dispatchers.IO) {
+                                    File(
+                                        context.filesDir,
+                                        "foto_perfil.jpg"
+                                    ).delete()
+                                }
+
+                                profileImage = null
+                                mostrarDialogoEliminar = false
+                            }
+                        }
+                    ) {
+                        Text("Eliminar", color = RojoPerfil)
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            mostrarDialogoEliminar = false
+                        }
+                    ) {
+                        Text("Conservar")
+                    }
+                }
+            )
+        }
     }
 
     @Composable
@@ -331,5 +437,6 @@
                     fontWeight = FontWeight.Medium
                 )
             }
+
         }
     }

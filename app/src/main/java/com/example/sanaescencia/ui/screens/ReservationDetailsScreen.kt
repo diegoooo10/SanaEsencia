@@ -36,7 +36,8 @@ private val RojoCancelacion = Color(0xFFA45D50)
 fun ReservationDetailScreen(
     reserva: Reserva,
     modifier: Modifier = Modifier,
-    onBack: () -> Unit = {}
+    onBack: () -> Unit = {},
+    onCancel: () -> Unit
 ) {
     var estado by remember(reserva.id, reserva.estado) {
         mutableStateOf(reserva.estado)
@@ -93,7 +94,7 @@ fun ReservationDetailScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Surface(
-                        color = if (estado == "Cancelada")
+                        color = if (estado.equals("Cancelada", ignoreCase = true))
                             RojoCancelacion.copy(alpha = 0.12f)
                         else
                             VerdeDetalle.copy(alpha = 0.12f),
@@ -101,7 +102,7 @@ fun ReservationDetailScreen(
                     ) {
                         Text(
                             text = estado,
-                            color = if (estado == "Cancelada")
+                            color = if (estado.equals("Cancelada", ignoreCase = true))
                                 RojoCancelacion
                             else
                                 VerdeDetalle,
@@ -177,7 +178,10 @@ fun ReservationDetailScreen(
                 )
 
                 // Cancelar reserva
-                if (estado == "Confirmada" || estado == "Pendiente") {
+                if (
+                    estado.equals("Confirmada", ignoreCase = true) ||
+                    estado.equals("Pendiente", ignoreCase = true)
+                ) {
 
                     HorizontalDivider(color = Color(0xFFE4E7DF))
 
@@ -274,7 +278,7 @@ fun ReservationDetailScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        estado = "Cancelada"
+                        onCancel()
                         mostrarConfirmacion = false
                     }
                 ) {

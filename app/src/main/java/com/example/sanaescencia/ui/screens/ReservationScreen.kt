@@ -36,11 +36,13 @@ fun ReservationScreen(
 
     val filteredReservations = if (selectedTab == 0) {
         reservas.filter {
-            it.estado == "Confirmada" || it.estado == "Pendiente"
+            it.estado.equals("Confirmada", ignoreCase = true) ||
+                    it.estado.equals("Pendiente", ignoreCase = true)
         }
     } else {
         reservas.filter {
-            it.estado == "Realizada"
+            it.estado.equals("Realizada", ignoreCase = true) ||
+                    it.estado.equals("Cancelada", ignoreCase = true)
         }
     }
 
@@ -163,10 +165,15 @@ private fun ReservationCard(
     onClick: () -> Unit
 ) {
 
-    val statusColor = when (reserva.estado) {
-        "Confirmada" -> Color(0xFF52734C)
-        "Pendiente" -> Color(0xFF9A7839)
-        else -> Color(0xFF777D73)
+    val statusColor = when {
+        reserva.estado.equals("Confirmada", ignoreCase = true) ->
+            Color(0xFF52734C)
+
+        reserva.estado.equals("Pendiente", ignoreCase = true) ->
+            Color(0xFF9A7839)
+
+        else ->
+            Color(0xFF777D73)
     }
 
     Card(
