@@ -59,6 +59,11 @@ fun NewReservationScreen(
         horariosState?.getOrNull().orEmpty()
     val crearReservaState by reservaViewModel.crearReservaState.collectAsState()
     val isLoadingCrear by reservaViewModel.isLoadingCrear.collectAsState()
+    val inicioPagoState by reservaViewModel.inicioPagoState.collectAsState()
+
+    var procesandoPago by remember {
+        mutableStateOf(false)
+    }
     var selectedSpecialty by remember { mutableStateOf<Especialidad?>(null) }
     var selectedProfessional by remember { mutableStateOf<Profesional?>(null) }
     var selectedService by remember { mutableStateOf<Servicio?>(null) }
@@ -73,11 +78,24 @@ fun NewReservationScreen(
 
 
     LaunchedEffect(crearReservaState) {
-        crearReservaState?.onSuccess { reserva ->
-            reservaViewModel.iniciarPago(
-                token = token,
-                reservaId = reserva.id
-            )
+        crearReservaState?.let { resultado ->
+
+            resultado.onSuccess { reserva ->
+                reservaViewModel.iniciarPago(
+                    token = token,
+                    reservaId = reserva.id
+                )
+            }
+
+            resultado.onFailure {
+                procesandoPago = false
+            }
+        }
+    }
+
+    LaunchedEffect(inicioPagoState) {
+        if (inicioPagoState?.isFailure == true) {
+            procesandoPago = false
         }
     }
 
@@ -297,8 +315,6 @@ val filteredServices = servicios.filter {
         }
 
         // 6. Horarios
-
-// 6. Horarios
         if (selectedDate != null) {
 
             Text(
@@ -414,6 +430,7 @@ val filteredServices = servicios.filter {
                 }
             }
 
+
             Button(
                 onClick = {
                     val profesional = selectedProfessional
@@ -423,6 +440,7 @@ val filteredServices = servicios.filter {
                     val modalidad = selectedModality
 
                     if (
+                        !procesandoPago &&
                         profesional != null &&
                         servicio != null &&
                         fecha != null &&
@@ -430,6 +448,8 @@ val filteredServices = servicios.filter {
                         modalidad != null &&
                         token.isNotBlank()
                     ) {
+                        procesandoPago = true
+
                         val request = ReservaRequest(
                             profesionalId = profesional.id.toLong(),
                             servicioId = servicio.id.toLong(),
@@ -444,17 +464,38 @@ val filteredServices = servicios.filter {
                         )
                     }
                 },
-                enabled = !isLoadingCrear,
+                enabled = !procesandoPago && !isLoadingCrear,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = verde
+                    containerColor = verde,
+                    disabledContainerColor = verde.copy(alpha = 0.7f)
                 )
             ) {
-                Text(
-                    text = "Confirmar reserva",
-                    modifier = Modifier.padding(vertical = 6.dp)
-                )
+                if (procesandoPago) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        Text(
+                            text = "Redirigiendo a Webpay...",
+                            color = Color.White
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "Continuar y pagar",
+                        modifier = Modifier.padding(vertical = 6.dp)
+                    )
+                }
             }
         }
 

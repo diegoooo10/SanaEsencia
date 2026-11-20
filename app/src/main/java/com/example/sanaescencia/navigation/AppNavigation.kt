@@ -55,6 +55,11 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
 
+import kotlinx.coroutines.delay
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+
 private fun obtenerOrdenRuta(route: String?): Int {
     return when (route) {
         Routes.HOME -> 0
@@ -77,6 +82,9 @@ fun AppNavigation(
     var reservaConfirmada by remember {
         mutableStateOf<Reserva?>(null)
     }
+
+    var verificandoPago by remember { mutableStateOf(false) }
+    var mensajeVerificacion by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(recoveryToken) {
         if (!recoveryToken.isNullOrBlank()) {
@@ -204,19 +212,67 @@ fun AppNavigation(
     }
 
 
-    LaunchedEffect(reservaDetalleState) {
-        reservaDetalleState?.onSuccess { reserva ->
 
-            if (
-                currentRoute == Routes.WEBPAY &&
-                pagoActual?.pago?.reservaId == reserva.id &&
-                reserva.estado.equals("CONFIRMADA", ignoreCase = true)
-            ) {
-                reservaConfirmada = reserva
-                reservaViewModel.limpiarDetalle()
+
+    // Procesa el estado de la reserva después del retorno de Webpay.
+    LaunchedEffect(reservaDetalleState) {
+        if (!verificandoPago || currentRoute != Routes.WEBPAY) return@LaunchedEffect
+
+        reservaDetalleState?.onSuccess { reserva ->
+            if (pagoActual?.pago?.reservaId != reserva.id) return@onSuccess
+
+            when (reserva.estado.uppercase()) {
+                "CONFIRMADA" -> {
+                    verificandoPago = false
+                    reservaViewModel.limpiarDetalle()
+
+                    navController.navigate(Routes.RESERVATIONS) {
+                        popUpTo(Routes.NEW_RESERVATION) {
+                            inclusive = true
+                        }
+                        launchSingleTop = true
+                    }
+
+                    reservaConfirmada = reserva
+                }
+
+                "NO_CONCRETADA", "EXPIRADA", "CANCELADA" -> {
+                    verificandoPago = false
+                    reservaViewModel.limpiarDetalle()
+                    pagoActual = null
+
+                    navController.navigate(Routes.RESERVATIONS) {
+                        popUpTo(Routes.NEW_RESERVATION) {
+                            inclusive = true
+                        }
+                        launchSingleTop = true
+                    }
+                }
             }
         }
     }
+
+    // Consulta nuevamente la reserva mientras el resultado no sea definitivo.
+    LaunchedEffect(verificandoPago, pagoActual?.pago?.reservaId) {
+        if (!verificandoPago) return@LaunchedEffect
+
+        val reservaId = pagoActual?.pago?.reservaId ?: return@LaunchedEffect
+        val tokenActual = token ?: return@LaunchedEffect
+
+        repeat(6) {
+            if (!verificandoPago) return@LaunchedEffect
+
+            reservaViewModel.obtenerReservaPorId(tokenActual, reservaId)
+            delay(5_000)
+        }
+
+        if (verificandoPago) {
+            verificandoPago = false
+            mensajeVerificacion = "Todavía no podemos confirmar el resultado del pago. Puedes revisar tu reserva más tarde."
+        }
+    }
+
+
 
 
 
@@ -417,15 +473,12 @@ fun AppNavigation(
                         url = pago.url,
                         token = pago.token,
                         onPagoFinalizado = {
-                            if (!token.isNullOrBlank()) {
+                            if (!token.isNullOrBlank() && !verificandoPago) {
                                 reservaViewModel.limpiarDetalle()
-
-                                reservaViewModel.obtenerReservaPorId(
-                                    token = token!!,
-                                    id = pago.pago.reservaId
-                                )
+                                verificandoPago = true
                             }
                         }
+
                     )
                 }
             }
@@ -585,6 +638,31 @@ fun AppNavigation(
                         inclusive = true
                     }
                     launchSingleTop = true
+                }
+            }
+        )
+    }
+
+    mensajeVerificacion?.let { mensaje ->
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Resultado pendiente") },
+            text = { Text(mensaje) },
+            confirmButton = {
+                TextButton(onClick = {
+                    mensajeVerificacion = null
+                    verificandoPago = false
+                    reservaViewModel.limpiarDetalle()
+                    pagoActual = null
+
+                    navController.navigate(Routes.RESERVATIONS) {
+                        popUpTo(Routes.NEW_RESERVATION) {
+                            inclusive = true
+                        }
+                        launchSingleTop = true
+                    }
+                }) {
+                    Text("Ver mis reservas")
                 }
             }
         )
