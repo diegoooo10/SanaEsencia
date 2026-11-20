@@ -13,6 +13,8 @@ object Routes {
     // Reservas
     const val RESERVATIONS = "reservations"
     const val NEW_RESERVATION = "new_reservation"
+
+    const val RESERVATION_CANCELLED = "reservation_cancelled"
     const val RESERVATION_DETAIL = "reservation_detail"
 
     const val WEBPAY = "webpay"

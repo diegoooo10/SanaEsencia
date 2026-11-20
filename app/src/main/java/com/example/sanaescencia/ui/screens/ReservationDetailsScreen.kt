@@ -179,8 +179,7 @@ fun ReservationDetailScreen(
 
                 // Cancelar reserva
                 if (
-                    estado.equals("Confirmada", ignoreCase = true) ||
-                    estado.equals("Pendiente", ignoreCase = true)
+                    estado.equals("Confirmada", ignoreCase = true)
                 ) {
 
                     HorizontalDivider(color = Color(0xFFE4E7DF))

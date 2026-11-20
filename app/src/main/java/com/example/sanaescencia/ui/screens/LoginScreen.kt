@@ -245,29 +245,27 @@ fun LoginScreen(
         loginState?.onFailure { error ->
             Spacer(modifier = Modifier.height(12.dp))
 
+            val mensaje = when (error) {
+                is retrofit2.HttpException -> when (error.code()) {
+                    400, 401 -> "El correo o la contraseña son incorrectos."
+                    403 -> "No tienes autorización para acceder."
+                    in 500..599 -> "No pudimos iniciar sesión en este momento. Inténtalo más tarde."
+                    else -> "No pudimos iniciar sesión. Inténtalo nuevamente."
+                }
+
+                is java.io.IOException ->
+                    "No pudimos conectarnos. Revisa tu conexión a internet."
+
+                else ->
+                    "No pudimos iniciar sesión en este momento. Inténtalo nuevamente."
+            }
+
             Text(
-                text = error.message ?: "No fue posible iniciar sesión",
+                text = mensaje,
                 color = MaterialTheme.colorScheme.error,
                 fontSize = 13.sp,
                 textAlign = TextAlign.Center
             )
         }
-
-        Spacer(modifier = Modifier.height(40.dp))
-
-        Text(
-            text = "¿Necesitas ayuda para acceder?",
-            color = Color.Gray,
-            fontSize = 13.sp
-        )
-
-        TextButton(onClick = {}) {
-            Text(
-                text = "Contactar con Sanaesencia",
-                color = verde
-            )
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
     }
 }

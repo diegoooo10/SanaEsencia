@@ -59,6 +59,7 @@ import kotlinx.coroutines.delay
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.example.sanaescencia.ui.components.ReservationCancelledDialog
 
 private fun obtenerOrdenRuta(route: String?): Int {
     return when (route) {
@@ -101,6 +102,10 @@ fun AppNavigation(
         UsuarioRepositoryImpl(
             RetrofitClient.usuarioApiService
         )
+    }
+
+    var mensajeCancelacion by remember {
+        mutableStateOf<String?>(null)
     }
 
     val usuarioViewModel: UsuarioViewModel = viewModel(
@@ -276,12 +281,32 @@ fun AppNavigation(
 
 
     LaunchedEffect(cancelacionState) {
-        if (cancelacionState?.isSuccess == true) {
+        cancelacionState?.onSuccess {
             reservaViewModel.limpiarCancelacion()
 
             if (!token.isNullOrBlank()) {
                 reservaViewModel.obtenerReservas(token!!)
             }
+
+            navController.navigate(Routes.RESERVATION_CANCELLED) {
+                launchSingleTop = true
+            }
+        }
+
+        cancelacionState?.onFailure { error ->
+            mensajeCancelacion = when {
+                error.message?.contains("400") == true ->
+                    "No fue posible cancelar la reserva. Recuerda que debes hacerlo con al menos 12 horas de anticipación."
+
+                error.message?.contains("401") == true ||
+                        error.message?.contains("403") == true ->
+                    "Tu sesión no está autorizada para realizar esta operación."
+
+                else ->
+                    "No pudimos cancelar tu reserva. Inténtalo nuevamente."
+            }
+
+            reservaViewModel.limpiarCancelacion()
         }
     }
 
@@ -529,6 +554,19 @@ fun AppNavigation(
                 }
             }
 
+            composable(Routes.RESERVATION_CANCELLED) {
+                ReservationCancelledDialog(
+                    onVolverReservas = {
+                        navController.navigate(Routes.RESERVATIONS) {
+                            popUpTo(Routes.RESERVATIONS) {
+                                inclusive = false
+                            }
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
+
             // Perfil
             composable(Routes.PROFILE) {
                 ProfileScreen(
@@ -676,6 +714,29 @@ fun AppNavigation(
                     }
                 }) {
                     Text("Ver mis reservas")
+                }
+            }
+        )
+    }
+
+    mensajeCancelacion?.let { mensaje ->
+        AlertDialog(
+            onDismissRequest = {
+                mensajeCancelacion = null
+            },
+            title = {
+                Text("Resultado de cancelación")
+            },
+            text = {
+                Text(mensaje)
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        mensajeCancelacion = null
+                    }
+                ) {
+                    Text("Aceptar")
                 }
             }
         )

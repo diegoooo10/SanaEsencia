@@ -9,6 +9,7 @@ import com.example.sanaescencia.data.remote.dto.UsuarioResponse
 import com.example.sanaescencia.data.remote.dto.UsuarioUpdateRequest
 import com.example.sanaescencia.data.remote.dto.RecuperacionPasswordRequest
 import com.example.sanaescencia.data.remote.dto.RestablecerPasswordRequest
+import retrofit2.HttpException
 
 import kotlinx.coroutines.CancellationException
 import retrofit2.Response
@@ -30,12 +31,12 @@ class UsuarioRepositoryImpl(
                     Result.success(body)
                 } else {
                     Result.failure(
-                        Exception("El servidor devolvió una respuesta vacía")
+                        Exception("No pudimos completar tu solicitud. Por favor, inténtalo nuevamente.")
                     )
                 }
             } else {
                 Result.failure(
-                    Exception("Error HTTP ${response.code()}")
+                    HttpException(response)
                 )
             }
         } catch (e: CancellationException) {

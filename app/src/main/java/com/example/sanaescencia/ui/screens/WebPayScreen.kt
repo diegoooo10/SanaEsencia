@@ -41,6 +41,8 @@ import androidx.compose.ui.res.painterResource
 import kotlinx.coroutines.delay
 import com.example.sanaescencia.R
 
+import android.util.Log
+
 
 @Composable
 fun WebpayScreen(
@@ -57,6 +59,10 @@ fun WebpayScreen(
             onVolverReservas = onVolverReservas
         )
         return
+    }
+
+    LaunchedEffect(url) {
+        Log.d("SANA_WEBPAY", "URL de pago: $url")
     }
 
     var retornoDetectado by remember { mutableStateOf(false) }
