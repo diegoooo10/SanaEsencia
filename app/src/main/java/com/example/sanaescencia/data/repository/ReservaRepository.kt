@@ -3,6 +3,7 @@ package com.example.sanaescencia.data.repository
 
 import com.example.sanaescencia.data.model.Reserva
 import com.example.sanaescencia.data.remote.dto.ReservaRequest
+import com.example.sanaescencia.data.remote.dto.InicioPagoResponse
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -34,4 +35,9 @@ interface ReservaRepository {
         token: String,
         id: Long
     ): Result<Unit>
+
+    suspend fun iniciarPago(
+        token: String,
+        reservaId: Long
+    ): Result<InicioPagoResponse>
 }

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.sanaescencia.data.model.Reserva
 import com.example.sanaescencia.data.remote.dto.ReservaRequest
 import com.example.sanaescencia.data.repository.ReservaRepository
+import com.example.sanaescencia.data.remote.dto.InicioPagoResponse
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -53,6 +54,13 @@ class ReservaViewModel(
     val cancelacionState: StateFlow<Result<Unit>?> =
         _cancelacionState.asStateFlow()
 
+    // Estado de inicio de pago
+    private val _inicioPagoState =
+        MutableStateFlow<Result<InicioPagoResponse>?>(null)
+
+    val inicioPagoState: StateFlow<Result<InicioPagoResponse>?> =
+        _inicioPagoState.asStateFlow()
+
     // Estados de carga
     private val _isLoadingHorarios = MutableStateFlow(false)
     val isLoadingHorarios: StateFlow<Boolean> =
@@ -73,6 +81,10 @@ class ReservaViewModel(
     private val _isLoadingCancelacion = MutableStateFlow(false)
     val isLoadingCancelacion: StateFlow<Boolean> =
         _isLoadingCancelacion.asStateFlow()
+
+    private val _isLoadingPago = MutableStateFlow(false)
+    val isLoadingPago: StateFlow<Boolean> =
+        _isLoadingPago.asStateFlow()
 
 
     // Obtener horarios disponibles
@@ -225,6 +237,35 @@ class ReservaViewModel(
     }
 
 
+    fun iniciarPago(
+        token: String,
+        reservaId: Long
+    ) {
+        if (_isLoadingPago.value) return
+
+        viewModelScope.launch {
+            _isLoadingPago.value = true
+            _inicioPagoState.value = null
+
+            try {
+                _inicioPagoState.value =
+                    repository.iniciarPago(
+                        token = token,
+                        reservaId = reservaId
+                    )
+
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _inicioPagoState.value = Result.failure(e)
+            } finally {
+                _isLoadingPago.value = false
+            }
+        }
+    }
+
+
+
     // Limpiar estados
     fun limpiarHorarios() {
         _horariosState.value = null
@@ -244,5 +285,9 @@ class ReservaViewModel(
 
     fun limpiarCancelacion() {
         _cancelacionState.value = null
+    }
+
+    fun limpiarInicioPago() {
+        _inicioPagoState.value = null
     }
 }

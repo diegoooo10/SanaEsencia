@@ -42,6 +42,12 @@ import com.example.sanaescencia.ui.viewmodel.ServicioViewModelFactory
 import com.example.sanaescencia.data.repository.ReservaRepositoryImpl
 import com.example.sanaescencia.ui.viewmodel.ReservaViewModel
 import com.example.sanaescencia.ui.viewmodel.ReservaViewModelFactory
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.example.sanaescencia.data.remote.dto.InicioPagoResponse
+import com.example.sanaescencia.ui.screens.WebpayScreen
+import com.example.sanaescencia.data.model.Reserva
+import com.example.sanaescencia.ui.components.ReservationConfirmationDialog
 
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -63,6 +69,14 @@ fun AppNavigation(
 ) {
 
     val navController = rememberNavController()
+
+    var pagoActual by remember {
+        mutableStateOf<InicioPagoResponse?>(null)
+    }
+
+    var reservaConfirmada by remember {
+        mutableStateOf<Reserva?>(null)
+    }
 
     LaunchedEffect(recoveryToken) {
         if (!recoveryToken.isNullOrBlank()) {
@@ -138,6 +152,10 @@ fun AppNavigation(
 
     val reservas = reservasState?.getOrNull().orEmpty()
 
+    val reservaDetalleState by reservaViewModel.reservaDetalleState.collectAsState()
+
+    val inicioPagoState by reservaViewModel.inicioPagoState.collectAsState()
+
     LaunchedEffect(token) {
         if (!token.isNullOrBlank()) {
             profesionalViewModel.obtenerProfesionales(token!!)
@@ -171,6 +189,36 @@ fun AppNavigation(
             reservaViewModel.obtenerReservas(token!!)
         }
     }
+
+
+    LaunchedEffect(inicioPagoState) {
+        inicioPagoState?.onSuccess { respuesta ->
+            pagoActual = respuesta
+
+            reservaViewModel.limpiarInicioPago()
+
+            navController.navigate(Routes.WEBPAY) {
+                launchSingleTop = true
+            }
+        }
+    }
+
+
+    LaunchedEffect(reservaDetalleState) {
+        reservaDetalleState?.onSuccess { reserva ->
+
+            if (
+                currentRoute == Routes.WEBPAY &&
+                pagoActual?.pago?.reservaId == reserva.id &&
+                reserva.estado.equals("CONFIRMADA", ignoreCase = true)
+            ) {
+                reservaConfirmada = reserva
+                reservaViewModel.limpiarDetalle()
+            }
+        }
+    }
+
+
 
     LaunchedEffect(cancelacionState) {
         if (cancelacionState?.isSuccess == true) {
@@ -360,6 +408,29 @@ fun AppNavigation(
                 )
             }
 
+
+            composable(Routes.WEBPAY) {
+                val pago = pagoActual
+
+                if (pago != null) {
+                    WebpayScreen(
+                        url = pago.url,
+                        token = pago.token,
+                        onPagoFinalizado = {
+                            if (!token.isNullOrBlank()) {
+                                reservaViewModel.limpiarDetalle()
+
+                                reservaViewModel.obtenerReservaPorId(
+                                    token = token!!,
+                                    id = pago.pago.reservaId
+                                )
+                            }
+                        }
+                    )
+                }
+            }
+
+
             composable(
                 route = "${Routes.RESERVATION_DETAIL}/{reservationId}",
                 arguments = listOf(
@@ -493,4 +564,30 @@ fun AppNavigation(
             }
         }
     }
+
+
+    reservaConfirmada?.let { reserva ->
+        ReservationConfirmationDialog(
+            service = reserva.servicio,
+            professional = reserva.profesional,
+            date = reserva.fecha.toString(),
+            hour = reserva.hora.toString(),
+            modality = reserva.modalidad,
+            onDismiss = {
+                // Mantener el diálogo hasta pulsar Aceptar
+            },
+            onConfirm = {
+                reservaConfirmada = null
+                pagoActual = null
+
+                navController.navigate(Routes.RESERVATIONS) {
+                    popUpTo(Routes.NEW_RESERVATION) {
+                        inclusive = true
+                    }
+                    launchSingleTop = true
+                }
+            }
+        )
+    }
+
 }

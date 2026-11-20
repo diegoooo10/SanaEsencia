@@ -5,6 +5,7 @@ import com.example.sanaescencia.data.model.Reserva
 import com.example.sanaescencia.data.remote.api.ReservaApiService
 import kotlinx.coroutines.CancellationException
 import com.example.sanaescencia.data.remote.dto.ReservaRequest
+import com.example.sanaescencia.data.remote.dto.InicioPagoResponse
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -177,4 +178,40 @@ class ReservaRepositoryImpl(
             Result.failure(e)
         }
     }
+
+
+    override suspend fun iniciarPago(
+        token: String,
+        reservaId: Long
+    ): Result<InicioPagoResponse> {
+
+        return try {
+            val response = api.iniciarPago(
+                token = "Bearer $token",
+                id = reservaId
+            )
+
+            if (response.isSuccessful) {
+                val body = response.body()
+
+                if (body != null) {
+                    Result.success(body)
+                } else {
+                    Result.failure(
+                        Exception("El servidor devolvió una respuesta vacía")
+                    )
+                }
+            } else {
+                Result.failure(
+                    Exception("Error HTTP ${response.code()}")
+                )
+            }
+
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
 }

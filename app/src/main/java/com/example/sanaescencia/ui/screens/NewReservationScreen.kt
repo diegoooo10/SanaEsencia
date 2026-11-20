@@ -71,13 +71,18 @@ fun NewReservationScreen(
         reservaViewModel.limpiarCreacion()
     }
 
+
     LaunchedEffect(crearReservaState) {
-        crearReservaState?.onSuccess {
-            showConfirmationDialog = true
+        crearReservaState?.onSuccess { reserva ->
+            reservaViewModel.iniciarPago(
+                token = token,
+                reservaId = reserva.id
+            )
         }
     }
 
-val filteredProfessionals = profesionales.filter {
+
+    val filteredProfessionals = profesionales.filter {
     selectedSpecialty != null &&
             selectedSpecialty!!.id in it.especialidadesIds &&
             it.estadoAgenda == "DISPONIBLE"

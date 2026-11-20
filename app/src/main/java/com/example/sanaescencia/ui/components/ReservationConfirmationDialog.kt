@@ -34,7 +34,7 @@ fun ReservationConfirmationDialog(
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Tu reserva ha sido registrada correctamente.")
+                Text("Tu pago fue aprobado y tu reserva ha sido confirmada correctamente.")
 
                 Text("Servicio: $service")
                 Text("Profesional: $professional")

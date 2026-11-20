@@ -11,6 +11,7 @@ import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
 import com.example.sanaescencia.data.remote.dto.ReservaRequest
+import com.example.sanaescencia.data.remote.dto.InicioPagoResponse
 
 interface ReservaApiService {
 
@@ -45,4 +46,12 @@ interface ReservaApiService {
         @Header("Authorization") token: String,
         @Path("id") id: Long
     ): Response<Reserva>
+
+
+    @POST("api/reservas/{id}/pago")
+    suspend fun iniciarPago(
+        @Header("Authorization") token: String,
+        @Path("id") id: Long
+    ): Response<InicioPagoResponse>
+
 }

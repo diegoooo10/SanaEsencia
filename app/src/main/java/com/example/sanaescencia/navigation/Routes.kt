@@ -15,6 +15,8 @@ object Routes {
     const val NEW_RESERVATION = "new_reservation"
     const val RESERVATION_DETAIL = "reservation_detail"
 
+    const val WEBPAY = "webpay"
+
     // Perfil
     const val PROFILE = "profile"
     const val EDIT_PROFILE = "edit_profile"
