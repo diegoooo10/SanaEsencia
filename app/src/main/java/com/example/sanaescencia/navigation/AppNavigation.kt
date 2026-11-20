@@ -85,6 +85,7 @@ fun AppNavigation(
 
     var verificandoPago by remember { mutableStateOf(false) }
     var mensajeVerificacion by remember { mutableStateOf<String?>(null) }
+    var estadoFinalPago by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(recoveryToken) {
         if (!recoveryToken.isNullOrBlank()) {
@@ -202,6 +203,9 @@ fun AppNavigation(
     LaunchedEffect(inicioPagoState) {
         inicioPagoState?.onSuccess { respuesta ->
             pagoActual = respuesta
+            estadoFinalPago = null
+            mensajeVerificacion = null
+            verificandoPago = false
 
             reservaViewModel.limpiarInicioPago()
 
@@ -214,6 +218,7 @@ fun AppNavigation(
 
 
 
+    // Procesa el estado de la reserva después del retorno de Webpay.
     // Procesa el estado de la reserva después del retorno de Webpay.
     LaunchedEffect(reservaDetalleState) {
         if (!verificandoPago || currentRoute != Routes.WEBPAY) return@LaunchedEffect
@@ -239,14 +244,8 @@ fun AppNavigation(
                 "NO_CONCRETADA", "EXPIRADA", "CANCELADA" -> {
                     verificandoPago = false
                     reservaViewModel.limpiarDetalle()
-                    pagoActual = null
 
-                    navController.navigate(Routes.RESERVATIONS) {
-                        popUpTo(Routes.NEW_RESERVATION) {
-                            inclusive = true
-                        }
-                        launchSingleTop = true
-                    }
+                    estadoFinalPago = reserva.estado.uppercase()
                 }
             }
         }
@@ -472,13 +471,27 @@ fun AppNavigation(
                     WebpayScreen(
                         url = pago.url,
                         token = pago.token,
+                        estadoFinal = estadoFinalPago,
                         onPagoFinalizado = {
-                            if (!token.isNullOrBlank() && !verificandoPago) {
+                            if (!token.isNullOrBlank() && !verificandoPago && estadoFinalPago == null) {
                                 reservaViewModel.limpiarDetalle()
                                 verificandoPago = true
                             }
-                        }
+                        },
+                        onVolverReservas = {
+                            estadoFinalPago = null
+                            mensajeVerificacion = null
+                            verificandoPago = false
+                            reservaViewModel.limpiarDetalle()
+                            pagoActual = null
 
+                            navController.navigate(Routes.RESERVATIONS) {
+                                popUpTo(Routes.NEW_RESERVATION) {
+                                    inclusive = true
+                                }
+                                launchSingleTop = true
+                            }
+                        }
                     )
                 }
             }
