@@ -28,7 +28,6 @@ Aplicación móvil para consultar prestaciones de bienestar, explorar profesiona
 - Visualización del resultado de la operación y actualización de la reserva.
 - Manejo de procesos de pago anulados.
 
-La validación definitiva de pagos, disponibilidad y reglas de cancelación se realiza en el **backend**, no exclusivamente en Android.
 
 ## 🛠️ Tecnologías
 
@@ -101,7 +100,6 @@ La navegación principal contiene tres apartados:
 | **Reservas** | Próximas reservas, historial, creación y detalle |
 | **Perfil** | Datos personales y opciones de cuenta |
 
-El módulo de tienda o esencias florales **no forma parte del alcance actual del MVP**.
 
 ## 🔌 Conexión con el backend
 
@@ -114,9 +112,6 @@ El backend gestiona, entre otras responsabilidades:
 - Disponibilidad y reservas.
 - Transacciones de Webpay Plus.
 
-La URL base utilizada por Retrofit debe apuntar al **API Gateway accesible desde el dispositivo**. No utilices `localhost` para conectarte a un servidor remoto desde un teléfono físico.
-
-> **Nota de seguridad:** evita publicar credenciales, tokens, contraseñas, archivos de claves privadas o datos reales de usuarios en el repositorio.
 
 ## 🚀 Requisitos y ejecución
 
@@ -208,16 +203,6 @@ El proyecto es un **MVP en validación funcional**. Su objetivo es demostrar el 
 - Publicación de una versión Release.
 - Integración con plataformas externas de gestión, sujeta a evaluación.
 - Funcionalidades adicionales según los requerimientos del centro.
-
-## 📸 Capturas de pantalla
-
-Se pueden incorporar capturas de **Inicio de sesión**, **Inicio**, **Reservas** y **Perfil** cuando estén listas para publicación. Evita incluir datos personales o tokens visibles.
-
-## 👨‍💻 Sobre el proyecto
-
-Proyecto académico y de demostración funcional, desarrollado para aplicar conocimientos de Android, Kotlin, arquitectura MVVM, consumo de API REST e integración con servicios externos.
-
-**Repositorio Android:** https://github.com/diegoooo10/SanaEsencia
 
 ---
 
