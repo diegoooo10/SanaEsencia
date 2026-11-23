@@ -1,3 +1,6 @@
+import org.gradle.api.tasks.testing.Test
+import org.gradle.process.CommandLineArgumentProvider
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -20,10 +23,22 @@ android {
     }
 
     buildTypes {
+        debug {
+            enableUnitTestCoverage = true
+            enableAndroidTestCoverage = true
+        }
         release {
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
+            }
+        }
+    }
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            all { test ->
+                test.systemProperty("robolectric.graphicsMode", "NATIVE")
             }
         }
     }
@@ -34,6 +49,30 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+}
+
+// Robolectric define las clases de la aplicacion en su propio classloader sin
+// CodeSource, por lo que JaCoCo las ignora por defecto. AGP fija
+// inclnolocationclasses=false; aqui se reemplaza el argumento del agente para
+// que las pruebas de UI (Robolectric/Compose) tambien aporten cobertura.
+tasks.withType<Test>().configureEach {
+    doFirst {
+        val proveedores = jvmArgumentProviders
+        val proveedoresJacoco = proveedores.filter { proveedor ->
+            runCatching {
+                proveedor.asArguments().any { it.contains("jacocoagent", ignoreCase = true) }
+            }.getOrDefault(false)
+        }
+        if (proveedoresJacoco.isNotEmpty()) {
+            val argumentosCorregidos = proveedoresJacoco
+                .flatMap { it.asArguments() }
+                .filter { it.contains("jacocoagent", ignoreCase = true) }
+                .map { it.replace("inclnolocationclasses=false", "inclnolocationclasses=true") }
+            proveedores.removeAll(proveedoresJacoco.toSet())
+            proveedores.add(CommandLineArgumentProvider { argumentosCorregidos })
+            logger.lifecycle("JaCoCo: inclnolocationclasses habilitado en $name")
+        }
     }
 }
 
@@ -66,6 +105,13 @@ dependencies {
     implementation("androidx.exifinterface:exifinterface:1.4.2")
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core.ktx)
+    testImplementation(libs.androidx.junit)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.androidx.compose.ui.test.manifest)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
