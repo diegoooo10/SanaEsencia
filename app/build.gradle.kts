@@ -39,6 +39,9 @@ android {
             isIncludeAndroidResources = true
             all { test ->
                 test.systemProperty("robolectric.graphicsMode", "NATIVE")
+                // JUnit Platform ejecuta las pruebas JUnit 5/Kotest y, a traves
+                // del motor Vintage, las pruebas JUnit 4 (Robolectric y Compose).
+                test.useJUnitPlatform()
             }
         }
     }
@@ -112,6 +115,15 @@ dependencies {
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.androidx.compose.ui.test.manifest)
+
+    // JUnit 5 + Kotest 5.9.0 + MockK 1.13.10
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.vintage.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
+    testImplementation(libs.kotest.runner.junit5)
+    testImplementation(libs.kotest.assertions.core)
+    testImplementation(libs.kotest.property)
+    testImplementation(libs.mockk)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
