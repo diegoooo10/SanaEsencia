@@ -1,129 +1,151 @@
 package com.example.sanaescencia.data.repository
 
-import com.example.sanaescencia.testutil.FakeServicioApi
+import com.example.sanaescencia.data.model.Especialidad
+import com.example.sanaescencia.data.model.Servicio
+import com.example.sanaescencia.data.remote.api.ServicioApiService
 import com.example.sanaescencia.testutil.TestData
 import com.example.sanaescencia.testutil.responseHttpError
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertThrows
-import org.junit.Assert.assertTrue
-import org.junit.Test
 import retrofit2.Response
 import java.io.IOException
 
-class ServicioRepositoryImplTest {
+class ServicioRepositoryImplTest : FunSpec({
 
-    private val api = FakeServicioApi()
-    private val repository = ServicioRepositoryImpl(api)
+    lateinit var api: ServicioApiService
+    lateinit var repository: ServicioRepositoryImpl
 
-    @Test
-    fun `obtiene especialidades enviando el token Bearer`() = runTest {
-        api.especialidadesResponse = Response.success(listOf(TestData.especialidad))
-
-        val result = repository.obtenerEspecialidades("token-1")
-
-        assertEquals(listOf(TestData.especialidad), result.getOrNull())
-        assertEquals("Bearer token-1", api.lastEspecialidadesToken)
+    beforeTest {
+        api = mockk()
+        repository = ServicioRepositoryImpl(api)
     }
 
-    @Test
-    fun `especialidades con cuerpo nulo devuelve failure`() = runTest {
-        api.especialidadesResponse = Response.success(null)
+    test("obtiene especialidades enviando el token Bearer") {
+        runTest {
+            coEvery { api.obtenerEspecialidades("Bearer token-1") } returns
+                Response.success(listOf(TestData.especialidad))
 
-        val result = repository.obtenerEspecialidades("token-1")
+            val result = repository.obtenerEspecialidades("token-1")
 
-        assertTrue(result.isFailure)
-        assertEquals(
-            "El servidor devolvio una respuesta vacia",
-            result.exceptionOrNull()?.message
-        )
-    }
-
-    @Test
-    fun `especialidades con error HTTP devuelve failure`() = runTest {
-        api.especialidadesResponse = responseHttpError(500)
-
-        val result = repository.obtenerEspecialidades("token-1")
-
-        assertEquals("Error HTTP 500", result.exceptionOrNull()?.message)
-    }
-
-    @Test
-    fun `especialidades captura excepciones`() = runTest {
-        api.error = IOException("timeout")
-
-        val result = repository.obtenerEspecialidades("token-1")
-
-        assertTrue(result.exceptionOrNull() is IOException)
-    }
-
-    @Test
-    fun `obtiene servicios sin filtro de especialidad`() = runTest {
-        api.serviciosResponse = Response.success(listOf(TestData.servicio))
-
-        val result = repository.obtenerServicios("token-2", null)
-
-        assertEquals(listOf(TestData.servicio), result.getOrNull())
-        assertEquals("Bearer token-2", api.lastServiciosToken)
-        assertNull(api.lastEspecialidadId)
-    }
-
-    @Test
-    fun `obtiene servicios filtrando por especialidad`() = runTest {
-        val result = repository.obtenerServicios("token-2", 7)
-
-        assertTrue(result.isSuccess)
-        assertEquals(7, api.lastEspecialidadId)
-    }
-
-    @Test
-    fun `servicios con cuerpo nulo devuelve failure`() = runTest {
-        api.serviciosResponse = Response.success(null)
-
-        val result = repository.obtenerServicios("token-2", 1)
-
-        assertEquals(
-            "El servidor devolvio una respuesta vacia",
-            result.exceptionOrNull()?.message
-        )
-    }
-
-    @Test
-    fun `servicios con error HTTP devuelve failure`() = runTest {
-        api.serviciosResponse = responseHttpError(404)
-
-        val result = repository.obtenerServicios("token-2", 1)
-
-        assertEquals("Error HTTP 404", result.exceptionOrNull()?.message)
-    }
-
-    @Test
-    fun `servicios captura excepciones`() = runTest {
-        api.error = IllegalStateException("boom")
-
-        val result = repository.obtenerServicios("token-2", 1)
-
-        assertEquals("boom", result.exceptionOrNull()?.message)
-    }
-
-    @Test
-    fun `propaga CancellationException en especialidades`() {
-        api.error = CancellationException("cancelado")
-
-        assertThrows(CancellationException::class.java) {
-            runBlocking { repository.obtenerEspecialidades("t") }
+            result.getOrNull() shouldBe listOf(TestData.especialidad)
+            coVerify(exactly = 1) { api.obtenerEspecialidades("Bearer token-1") }
         }
     }
 
-    @Test
-    fun `propaga CancellationException en servicios`() {
-        api.error = CancellationException("cancelado")
+    test("especialidades con cuerpo nulo devuelve failure") {
+        runTest {
+            coEvery { api.obtenerEspecialidades(any()) } returns
+                Response.success<List<Especialidad>>(null)
 
-        assertThrows(CancellationException::class.java) {
-            runBlocking { repository.obtenerServicios("t", null) }
+            val result = repository.obtenerEspecialidades("token-1")
+
+            result.isFailure shouldBe true
+            result.exceptionOrNull()?.message shouldBe
+                "El servidor devolvio una respuesta vacia"
         }
     }
-}
+
+    test("especialidades con error HTTP devuelve failure") {
+        runTest {
+            coEvery { api.obtenerEspecialidades(any()) } returns responseHttpError(500)
+
+            val result = repository.obtenerEspecialidades("token-1")
+
+            result.exceptionOrNull()?.message shouldBe "Error HTTP 500"
+        }
+    }
+
+    test("especialidades captura excepciones") {
+        runTest {
+            coEvery { api.obtenerEspecialidades(any()) } throws IOException("timeout")
+
+            val result = repository.obtenerEspecialidades("token-1")
+
+            result.exceptionOrNull().shouldBeInstanceOf<IOException>()
+        }
+    }
+
+    test("obtiene servicios sin filtro de especialidad") {
+        runTest {
+            coEvery { api.obtenerServicios("Bearer token-2", null) } returns
+                Response.success(listOf(TestData.servicio))
+
+            val result = repository.obtenerServicios("token-2", null)
+
+            result.getOrNull() shouldBe listOf(TestData.servicio)
+            coVerify(exactly = 1) { api.obtenerServicios("Bearer token-2", null) }
+        }
+    }
+
+    test("obtiene servicios filtrando por especialidad") {
+        runTest {
+            coEvery { api.obtenerServicios("Bearer token-2", 7) } returns
+                Response.success(listOf(TestData.servicio))
+
+            val result = repository.obtenerServicios("token-2", 7)
+
+            result.isSuccess shouldBe true
+            coVerify(exactly = 1) { api.obtenerServicios("Bearer token-2", 7) }
+        }
+    }
+
+    test("servicios con cuerpo nulo devuelve failure") {
+        runTest {
+            coEvery { api.obtenerServicios(any(), any()) } returns
+                Response.success<List<Servicio>>(null)
+
+            val result = repository.obtenerServicios("token-2", 1)
+
+            result.exceptionOrNull()?.message shouldBe
+                "El servidor devolvio una respuesta vacia"
+        }
+    }
+
+    test("servicios con error HTTP devuelve failure") {
+        runTest {
+            coEvery { api.obtenerServicios(any(), any()) } returns responseHttpError(404)
+
+            val result = repository.obtenerServicios("token-2", 1)
+
+            result.exceptionOrNull()?.message shouldBe "Error HTTP 404"
+        }
+    }
+
+    test("servicios captura excepciones") {
+        runTest {
+            coEvery { api.obtenerServicios(any(), any()) } throws
+                IllegalStateException("boom")
+            val result = repository.obtenerServicios("token-2", 1)
+
+            result.exceptionOrNull()?.message shouldBe "boom"
+        }
+    }
+
+    test("propaga CancellationException en especialidades") {
+        coEvery { api.obtenerEspecialidades(any()) } throws CancellationException("cancelado")
+
+        runBlocking {
+            shouldThrow<CancellationException> {
+                repository.obtenerEspecialidades("t")
+            }
+        }
+    }
+
+    test("propaga CancellationException en servicios") {
+        coEvery { api.obtenerServicios(any(), any()) } throws CancellationException("cancelado")
+
+        runBlocking {
+            shouldThrow<CancellationException> {
+                repository.obtenerServicios("t", null)
+            }
+        }
+    }
+})

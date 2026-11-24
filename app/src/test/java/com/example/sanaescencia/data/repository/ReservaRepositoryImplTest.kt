@@ -1,312 +1,349 @@
 package com.example.sanaescencia.data.repository
 
-import com.example.sanaescencia.testutil.FakeReservaApi
+import com.example.sanaescencia.data.model.Reserva
+import com.example.sanaescencia.data.remote.api.ReservaApiService
 import com.example.sanaescencia.testutil.TestData
 import com.example.sanaescencia.testutil.responseHttpError
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertThrows
-import org.junit.Assert.assertTrue
-import org.junit.Test
 import retrofit2.Response
 import java.io.IOException
 import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeParseException
 
-class ReservaRepositoryImplTest {
+class ReservaRepositoryImplTest : FunSpec({
 
-    private val api = FakeReservaApi()
-    private val repository = ReservaRepositoryImpl(api)
+    lateinit var api: ReservaApiService
+    lateinit var repository: ReservaRepositoryImpl
+
+    beforeTest {
+        api = mockk()
+        repository = ReservaRepositoryImpl(api)
+    }
 
     // --- Horarios disponibles ---
 
-    @Test
-    fun `convierte los horarios de texto a LocalTime y envia todos los parametros`() = runTest {
-        api.horariosResponse = Response.success(listOf("09:00", "10:30:00"))
+    test("convierte los horarios de texto a LocalTime y envia todos los parametros") {
+        runTest {
+            coEvery {
+                api.obtenerHorariosDisponibles("Bearer tk", 3L, 9L, "2026-12-01", "Online")
+            } returns Response.success(listOf("09:00", "10:30:00"))
 
-        val result = repository.obtenerHorariosDisponibles(
-            token = "tk",
-            profesionalId = 3,
-            servicioId = 9,
-            fecha = LocalDate.of(2026, 12, 1),
-            modalidad = "Online"
-        )
+            val result = repository.obtenerHorariosDisponibles(
+                token = "tk",
+                profesionalId = 3,
+                servicioId = 9,
+                fecha = LocalDate.of(2026, 12, 1),
+                modalidad = "Online"
+            )
 
-        assertEquals(
-            listOf(java.time.LocalTime.of(9, 0), java.time.LocalTime.of(10, 30)),
-            result.getOrNull()
-        )
-        assertEquals("Bearer tk", api.lastHorariosToken)
-        assertEquals(3L, api.lastHorariosProfesionalId)
-        assertEquals(9L, api.lastHorariosServicioId)
-        assertEquals("2026-12-01", api.lastHorariosFecha)
-        assertEquals("Online", api.lastHorariosModalidad)
+            result.getOrNull() shouldBe listOf(LocalTime.of(9, 0), LocalTime.of(10, 30))
+            coVerify(exactly = 1) {
+                api.obtenerHorariosDisponibles("Bearer tk", 3L, 9L, "2026-12-01", "Online")
+            }
+        }
     }
 
-    @Test
-    fun `horarios con cuerpo nulo devuelve failure`() = runTest {
-        api.horariosResponse = Response.success(null)
+    test("horarios con cuerpo nulo devuelve failure") {
+        runTest {
+            coEvery { api.obtenerHorariosDisponibles(any(), any(), any(), any(), any()) } returns
+                Response.success<List<String>>(null)
 
-        val result = repository.obtenerHorariosDisponibles(
-            "tk", 1, 2, LocalDate.of(2026, 1, 1), "Presencial"
-        )
+            val result = repository.obtenerHorariosDisponibles(
+                "tk", 1, 2, LocalDate.of(2026, 1, 1), "Presencial"
+            )
 
-        assertTrue(result.isFailure)
-        assertTrue(result.exceptionOrNull()?.message.orEmpty().startsWith("El servidor devolvi"))
+            result.isFailure shouldBe true
+            result.exceptionOrNull()?.message.orEmpty().startsWith("El servidor devolvi") shouldBe true
+        }
     }
 
-    @Test
-    fun `horarios con error HTTP devuelve failure`() = runTest {
-        api.horariosResponse = responseHttpError(409)
+    test("horarios con error HTTP devuelve failure") {
+        runTest {
+            coEvery { api.obtenerHorariosDisponibles(any(), any(), any(), any(), any()) } returns
+                responseHttpError(409)
 
-        val result = repository.obtenerHorariosDisponibles(
-            "tk", 1, 2, LocalDate.of(2026, 1, 1), "Presencial"
-        )
+            val result = repository.obtenerHorariosDisponibles(
+                "tk", 1, 2, LocalDate.of(2026, 1, 1), "Presencial"
+            )
 
-        assertEquals("Error HTTP 409", result.exceptionOrNull()?.message)
+            result.exceptionOrNull()?.message shouldBe "Error HTTP 409"
+        }
     }
 
-    @Test
-    fun `horarios con formato invalido captura la excepcion de parseo`() = runTest {
-        api.horariosResponse = Response.success(listOf("no-es-hora"))
+    test("horarios con formato invalido captura la excepcion de parseo") {
+        runTest {
+            coEvery { api.obtenerHorariosDisponibles(any(), any(), any(), any(), any()) } returns
+                Response.success(listOf("no-es-hora"))
 
-        val result = repository.obtenerHorariosDisponibles(
-            "tk", 1, 2, LocalDate.of(2026, 1, 1), "Presencial"
-        )
+            val result = repository.obtenerHorariosDisponibles(
+                "tk", 1, 2, LocalDate.of(2026, 1, 1), "Presencial"
+            )
 
-        assertTrue(result.isFailure)
-        assertTrue(result.exceptionOrNull() is java.time.format.DateTimeParseException)
+            result.isFailure shouldBe true
+            result.exceptionOrNull().shouldBeInstanceOf<DateTimeParseException>()
+        }
     }
 
-    @Test
-    fun `horarios captura excepciones de red`() = runTest {
-        api.error = IOException("red")
+    test("horarios captura excepciones de red") {
+        runTest {
+            coEvery { api.obtenerHorariosDisponibles(any(), any(), any(), any(), any()) } throws
+                IOException("red")
 
-        val result = repository.obtenerHorariosDisponibles(
-            "tk", 1, 2, LocalDate.of(2026, 1, 1), "Presencial"
-        )
+            val result = repository.obtenerHorariosDisponibles(
+                "tk", 1, 2, LocalDate.of(2026, 1, 1), "Presencial"
+            )
 
-        assertTrue(result.exceptionOrNull() is IOException)
+            result.exceptionOrNull().shouldBeInstanceOf<IOException>()
+        }
     }
 
     // --- Listado de reservas ---
 
-    @Test
-    fun `obtiene el listado de reservas`() = runTest {
-        api.reservasResponse = Response.success(listOf(TestData.reserva))
+    test("obtiene el listado de reservas") {
+        runTest {
+            coEvery { api.obtenerReservas("Bearer tk") } returns
+                Response.success(listOf(TestData.reserva))
 
-        val result = repository.obtenerReservas("tk")
+            val result = repository.obtenerReservas("tk")
 
-        assertEquals(listOf(TestData.reserva), result.getOrNull())
-        assertEquals("Bearer tk", api.lastReservasToken)
+            result.getOrNull() shouldBe listOf(TestData.reserva)
+            coVerify(exactly = 1) { api.obtenerReservas("Bearer tk") }
+        }
     }
 
-    @Test
-    fun `listado con cuerpo nulo devuelve failure`() = runTest {
-        api.reservasResponse = Response.success(null)
+    test("listado con cuerpo nulo devuelve failure") {
+        runTest {
+            coEvery { api.obtenerReservas(any()) } returns Response.success<List<Reserva>>(null)
 
-        val result = repository.obtenerReservas("tk")
+            val result = repository.obtenerReservas("tk")
 
-        assertTrue(result.isFailure)
+            result.isFailure shouldBe true
+        }
     }
 
-    @Test
-    fun `listado con error HTTP devuelve failure`() = runTest {
-        api.reservasResponse = responseHttpError(401)
+    test("listado con error HTTP devuelve failure") {
+        runTest {
+            coEvery { api.obtenerReservas(any()) } returns responseHttpError(401)
 
-        val result = repository.obtenerReservas("tk")
+            val result = repository.obtenerReservas("tk")
 
-        assertEquals("Error HTTP 401", result.exceptionOrNull()?.message)
+            result.exceptionOrNull()?.message shouldBe "Error HTTP 401"
+        }
     }
 
-    @Test
-    fun `listado captura excepciones`() = runTest {
-        api.error = IllegalStateException("boom")
+    test("listado captura excepciones") {
+        runTest {
+            coEvery { api.obtenerReservas(any()) } throws IllegalStateException("boom")
 
-        val result = repository.obtenerReservas("tk")
+            val result = repository.obtenerReservas("tk")
 
-        assertEquals("boom", result.exceptionOrNull()?.message)
+            result.exceptionOrNull()?.message shouldBe "boom"
+        }
     }
 
     // --- Detalle ---
 
-    @Test
-    fun `obtiene el detalle de una reserva por id`() = runTest {
-        api.detalleResponse = Response.success(TestData.reserva)
+    test("obtiene el detalle de una reserva por id") {
+        runTest {
+            coEvery { api.obtenerReservaPorId("Bearer tk", 100L) } returns
+                Response.success(TestData.reserva)
 
-        val result = repository.obtenerReservaPorId("tk", 100)
+            val result = repository.obtenerReservaPorId("tk", 100)
 
-        assertEquals(TestData.reserva, result.getOrNull())
-        assertEquals("Bearer tk", api.lastDetalleToken)
-        assertEquals(100L, api.lastDetalleId)
+            result.getOrNull() shouldBe TestData.reserva
+            coVerify(exactly = 1) { api.obtenerReservaPorId("Bearer tk", 100L) }
+        }
     }
 
-    @Test
-    fun `detalle con cuerpo nulo devuelve failure`() = runTest {
-        api.detalleResponse = Response.success(null)
+    test("detalle con cuerpo nulo devuelve failure") {
+        runTest {
+            coEvery { api.obtenerReservaPorId(any(), any()) } returns
+                Response.success<Reserva>(null)
 
-        val result = repository.obtenerReservaPorId("tk", 100)
+            val result = repository.obtenerReservaPorId("tk", 100)
 
-        assertTrue(result.isFailure)
+            result.isFailure shouldBe true
+        }
     }
 
-    @Test
-    fun `detalle con error HTTP devuelve failure`() = runTest {
-        api.detalleResponse = responseHttpError(404)
+    test("detalle con error HTTP devuelve failure") {
+        runTest {
+            coEvery { api.obtenerReservaPorId(any(), any()) } returns responseHttpError(404)
 
-        val result = repository.obtenerReservaPorId("tk", 100)
+            val result = repository.obtenerReservaPorId("tk", 100)
 
-        assertEquals("Error HTTP 404", result.exceptionOrNull()?.message)
+            result.exceptionOrNull()?.message shouldBe "Error HTTP 404"
+        }
     }
 
-    @Test
-    fun `detalle captura excepciones`() = runTest {
-        api.error = RuntimeException("detalle")
+    test("detalle captura excepciones") {
+        runTest {
+            coEvery { api.obtenerReservaPorId(any(), any()) } throws
+                RuntimeException("detalle")
 
-        val result = repository.obtenerReservaPorId("tk", 100)
+            val result = repository.obtenerReservaPorId("tk", 100)
 
-        assertEquals("detalle", result.exceptionOrNull()?.message)
+            result.exceptionOrNull()?.message shouldBe "detalle"
+        }
     }
 
     // --- Creacion ---
 
-    @Test
-    fun `crea una reserva enviando el request`() = runTest {
-        api.crearResponse = Response.success(TestData.reserva)
+    test("crea una reserva enviando el request") {
+        runTest {
+            coEvery { api.crearReserva("Bearer tk", TestData.reservaRequest) } returns
+                Response.success(TestData.reserva)
 
-        val result = repository.crearReserva("tk", TestData.reservaRequest)
+            val result = repository.crearReserva("tk", TestData.reservaRequest)
 
-        assertEquals(TestData.reserva, result.getOrNull())
-        assertEquals("Bearer tk", api.lastCrearToken)
-        assertEquals(TestData.reservaRequest, api.lastCrearRequest)
+            result.getOrNull() shouldBe TestData.reserva
+            coVerify(exactly = 1) { api.crearReserva("Bearer tk", TestData.reservaRequest) }
+        }
     }
 
-    @Test
-    fun `creacion con cuerpo nulo devuelve failure`() = runTest {
-        api.crearResponse = Response.success(null)
+    test("creacion con cuerpo nulo devuelve failure") {
+        runTest {
+            coEvery { api.crearReserva(any(), any()) } returns Response.success<Reserva>(null)
 
-        val result = repository.crearReserva("tk", TestData.reservaRequest)
+            val result = repository.crearReserva("tk", TestData.reservaRequest)
 
-        assertTrue(result.isFailure)
+            result.isFailure shouldBe true
+        }
     }
 
-    @Test
-    fun `creacion con error HTTP devuelve failure`() = runTest {
-        api.crearResponse = responseHttpError(422)
+    test("creacion con error HTTP devuelve failure") {
+        runTest {
+            coEvery { api.crearReserva(any(), any()) } returns responseHttpError(422)
 
-        val result = repository.crearReserva("tk", TestData.reservaRequest)
+            val result = repository.crearReserva("tk", TestData.reservaRequest)
 
-        assertEquals("Error HTTP 422", result.exceptionOrNull()?.message)
+            result.exceptionOrNull()?.message shouldBe "Error HTTP 422"
+        }
     }
 
-    @Test
-    fun `creacion captura excepciones`() = runTest {
-        api.error = IOException("crear")
+    test("creacion captura excepciones") {
+        runTest {
+            coEvery { api.crearReserva(any(), any()) } throws IOException("crear")
 
-        val result = repository.crearReserva("tk", TestData.reservaRequest)
+            val result = repository.crearReserva("tk", TestData.reservaRequest)
 
-        assertTrue(result.exceptionOrNull() is IOException)
+            result.exceptionOrNull().shouldBeInstanceOf<IOException>()
+        }
     }
 
     // --- Cancelacion ---
 
-    @Test
-    fun `cancela una reserva exitosamente`() = runTest {
-        api.cancelarResponse = Response.success(TestData.reserva)
+    test("cancela una reserva exitosamente") {
+        runTest {
+            coEvery { api.cancelarReserva("Bearer tk", 55L) } returns
+                Response.success(TestData.reserva)
 
-        val result = repository.cancelarReserva("tk", 55)
+            val result = repository.cancelarReserva("tk", 55)
 
-        assertEquals(Unit, result.getOrNull())
-        assertEquals("Bearer tk", api.lastCancelarToken)
-        assertEquals(55L, api.lastCancelarId)
+            result.getOrNull() shouldBe Unit
+            coVerify(exactly = 1) { api.cancelarReserva("Bearer tk", 55L) }
+        }
     }
 
-    @Test
-    fun `cancelacion con error HTTP devuelve failure`() = runTest {
-        api.cancelarResponse = responseHttpError(400)
+    test("cancelacion con error HTTP devuelve failure") {
+        runTest {
+            coEvery { api.cancelarReserva(any(), any()) } returns responseHttpError(400)
 
-        val result = repository.cancelarReserva("tk", 55)
+            val result = repository.cancelarReserva("tk", 55)
 
-        assertEquals("Error HTTP 400", result.exceptionOrNull()?.message)
+            result.exceptionOrNull()?.message shouldBe "Error HTTP 400"
+        }
     }
 
-    @Test
-    fun `cancelacion captura excepciones`() = runTest {
-        api.error = IOException("cancelar")
+    test("cancelacion captura excepciones") {
+        runTest {
+            coEvery { api.cancelarReserva(any(), any()) } throws IOException("cancelar")
 
-        val result = repository.cancelarReserva("tk", 55)
+            val result = repository.cancelarReserva("tk", 55)
 
-        assertTrue(result.exceptionOrNull() is IOException)
+            result.exceptionOrNull().shouldBeInstanceOf<IOException>()
+        }
     }
 
     // --- Pago ---
 
-    @Test
-    fun `inicia el pago de una reserva`() = runTest {
-        api.pagoResponse = Response.success(TestData.inicioPago)
+    test("inicia el pago de una reserva") {
+        runTest {
+            coEvery { api.iniciarPago("Bearer tk", 100L) } returns
+                Response.success(TestData.inicioPago)
 
-        val result = repository.iniciarPago("tk", 100)
+            val result = repository.iniciarPago("tk", 100)
 
-        assertEquals(TestData.inicioPago, result.getOrNull())
-        assertEquals("Bearer tk", api.lastPagoToken)
-        assertEquals(100L, api.lastPagoId)
+            result.getOrNull() shouldBe TestData.inicioPago
+            coVerify(exactly = 1) { api.iniciarPago("Bearer tk", 100L) }
+        }
     }
 
-    @Test
-    fun `pago con cuerpo nulo devuelve failure`() = runTest {
-        api.pagoResponse = Response.success(null)
+    test("pago con cuerpo nulo devuelve failure") {
+        runTest {
+            coEvery { api.iniciarPago(any(), any()) } returns
+                Response.success<com.example.sanaescencia.data.remote.dto.InicioPagoResponse>(null)
 
-        val result = repository.iniciarPago("tk", 100)
+            val result = repository.iniciarPago("tk", 100)
 
-        assertTrue(result.isFailure)
+            result.isFailure shouldBe true
+        }
     }
 
-    @Test
-    fun `pago con error HTTP devuelve failure`() = runTest {
-        api.pagoResponse = responseHttpError(500)
+    test("pago con error HTTP devuelve failure") {
+        runTest {
+            coEvery { api.iniciarPago(any(), any()) } returns responseHttpError(500)
 
-        val result = repository.iniciarPago("tk", 100)
+            val result = repository.iniciarPago("tk", 100)
 
-        assertEquals("Error HTTP 500", result.exceptionOrNull()?.message)
+            result.exceptionOrNull()?.message shouldBe "Error HTTP 500"
+        }
     }
 
-    @Test
-    fun `pago captura excepciones`() = runTest {
-        api.error = IOException("pago")
+    test("pago captura excepciones") {
+        runTest {
+            coEvery { api.iniciarPago(any(), any()) } throws IOException("pago")
 
-        val result = repository.iniciarPago("tk", 100)
+            val result = repository.iniciarPago("tk", 100)
 
-        assertTrue(result.exceptionOrNull() is IOException)
+            result.exceptionOrNull().shouldBeInstanceOf<IOException>()
+        }
     }
 
     // --- Cancelacion de corrutina ---
 
-    @Test
-    fun `propaga CancellationException en cada endpoint`() {
-        api.error = CancellationException("cancelado")
+    test("propaga CancellationException en cada endpoint") {
+        coEvery { api.obtenerReservas(any()) } throws CancellationException("cancelado")
+        coEvery { api.obtenerReservaPorId(any(), any()) } throws CancellationException("cancelado")
+        coEvery { api.crearReserva(any(), any()) } throws CancellationException("cancelado")
+        coEvery { api.cancelarReserva(any(), any()) } throws CancellationException("cancelado")
+        coEvery { api.iniciarPago(any(), any()) } throws CancellationException("cancelado")
+        coEvery { api.obtenerHorariosDisponibles(any(), any(), any(), any(), any()) } throws
+            CancellationException("cancelado")
 
-        assertThrows(CancellationException::class.java) {
-            runBlocking { repository.obtenerReservas("t") }
-        }
-        assertThrows(CancellationException::class.java) {
-            runBlocking { repository.obtenerReservaPorId("t", 1) }
-        }
-        assertThrows(CancellationException::class.java) {
-            runBlocking { repository.crearReserva("t", TestData.reservaRequest) }
-        }
-        assertThrows(CancellationException::class.java) {
-            runBlocking { repository.cancelarReserva("t", 1) }
-        }
-        assertThrows(CancellationException::class.java) {
-            runBlocking { repository.iniciarPago("t", 1) }
-        }
-        assertThrows(CancellationException::class.java) {
-            runBlocking {
+        runBlocking {
+            shouldThrow<CancellationException> { repository.obtenerReservas("t") }
+            shouldThrow<CancellationException> { repository.obtenerReservaPorId("t", 1) }
+            shouldThrow<CancellationException> {
+                repository.crearReserva("t", TestData.reservaRequest)
+            }
+            shouldThrow<CancellationException> { repository.cancelarReserva("t", 1) }
+            shouldThrow<CancellationException> { repository.iniciarPago("t", 1) }
+            shouldThrow<CancellationException> {
                 repository.obtenerHorariosDisponibles(
                     "t", 1, 2, LocalDate.of(2026, 1, 1), "Online"
                 )
             }
         }
     }
-}
+})
