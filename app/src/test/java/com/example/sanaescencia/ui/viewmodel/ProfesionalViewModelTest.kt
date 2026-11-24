@@ -1,111 +1,124 @@
 package com.example.sanaescencia.ui.viewmodel
 
-import com.example.sanaescencia.testutil.FakeProfesionalRepository
-import com.example.sanaescencia.testutil.MainDispatcherRule
+import com.example.sanaescencia.data.repository.ProfesionalRepository
+import com.example.sanaescencia.testutil.MainDispatcherController
 import com.example.sanaescencia.testutil.TestData
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Rule
-import org.junit.Test
 import java.io.IOException
 
-class ProfesionalViewModelTest {
+class ProfesionalViewModelTest : FunSpec({
 
-    @get:Rule
-    val mainDispatcherRule = MainDispatcherRule()
+    val mainDispatcher = MainDispatcherController()
 
-    private val repository = FakeProfesionalRepository()
-    private val viewModel = ProfesionalViewModel(repository)
+    lateinit var repository: ProfesionalRepository
+    lateinit var viewModel: ProfesionalViewModel
 
-    @Test
-    fun `estado inicial vacio y sin carga`() {
-        assertNull(viewModel.profesionalesState.value)
-        assertFalse(viewModel.isLoading.value)
+    beforeTest {
+        mainDispatcher.install()
+        repository = mockk()
+        viewModel = ProfesionalViewModel(repository)
     }
 
-    @Test
-    fun `carga los profesionales exitosamente`() {
-        repository.result = Result.success(listOf(TestData.profesional))
+    afterTest {
+        mainDispatcher.reset()
+    }
+
+    test("estado inicial vacio y sin carga") {
+        viewModel.profesionalesState.value shouldBe null
+        viewModel.isLoading.value shouldBe false
+    }
+
+    test("carga los profesionales exitosamente") {
+        coEvery { repository.obtenerProfesionales("token-abc") } returns
+            Result.success(listOf(TestData.profesional))
 
         viewModel.obtenerProfesionales("token-abc")
 
-        assertEquals(
-            listOf(TestData.profesional),
-            viewModel.profesionalesState.value?.getOrNull()
-        )
-        assertEquals("token-abc", repository.lastToken)
-        assertFalse(viewModel.isLoading.value)
+        viewModel.profesionalesState.value?.getOrNull() shouldBe
+            listOf(TestData.profesional)
+        coVerify(exactly = 1) { repository.obtenerProfesionales("token-abc") }
+        viewModel.isLoading.value shouldBe false
     }
 
-    @Test
-    fun `propaga un Result failure del repositorio`() {
+    test("propaga un Result failure del repositorio") {
         val error = IllegalStateException("servicio caido")
-        repository.result = Result.failure(error)
+        coEvery { repository.obtenerProfesionales(any()) } returns Result.failure(error)
 
         viewModel.obtenerProfesionales("token")
 
-        assertEquals(error, viewModel.profesionalesState.value?.exceptionOrNull())
+        viewModel.profesionalesState.value?.exceptionOrNull() shouldBe error
     }
 
-    @Test
-    fun `convierte excepciones inesperadas en failure`() {
-        repository.throwable = IOException("sin red")
+    test("convierte excepciones inesperadas en failure") {
+        coEvery { repository.obtenerProfesionales(any()) } throws IOException("sin red")
 
         viewModel.obtenerProfesionales("token")
 
-        assertTrue(viewModel.profesionalesState.value?.isFailure == true)
-        assertTrue(viewModel.profesionalesState.value?.exceptionOrNull() is IOException)
-        assertFalse(viewModel.isLoading.value)
+        viewModel.profesionalesState.value?.isFailure shouldBe true
+        viewModel.profesionalesState.value?.exceptionOrNull()
+            .shouldBeInstanceOf<IOException>()
+        viewModel.isLoading.value shouldBe false
     }
 
-    @Test
-    fun `marca loading mientras la peticion esta en curso`() {
+    test("marca loading mientras la peticion esta en curso") {
         val gate = CompletableDeferred<Unit>()
-        repository.gate = gate
+        coEvery { repository.obtenerProfesionales(any()) } coAnswers {
+            gate.await()
+            Result.success(listOf(TestData.profesional))
+        }
 
         viewModel.obtenerProfesionales("token")
 
-        assertTrue(viewModel.isLoading.value)
+        viewModel.isLoading.value shouldBe true
 
         gate.complete(Unit)
 
-        assertFalse(viewModel.isLoading.value)
-        assertTrue(viewModel.profesionalesState.value?.isSuccess == true)
+        viewModel.isLoading.value shouldBe false
+        viewModel.profesionalesState.value?.isSuccess shouldBe true
     }
 
-    @Test
-    fun `ignora llamadas concurrentes mientras esta cargando`() {
+    test("ignora llamadas concurrentes mientras esta cargando") {
         val gate = CompletableDeferred<Unit>()
-        repository.gate = gate
+        coEvery { repository.obtenerProfesionales(any()) } coAnswers {
+            gate.await()
+            Result.success(listOf(TestData.profesional))
+        }
 
         viewModel.obtenerProfesionales("token-1")
         viewModel.obtenerProfesionales("token-2")
 
-        assertEquals(1, repository.calls)
-        assertEquals("token-1", repository.lastToken)
+        coVerify(exactly = 1) { repository.obtenerProfesionales(any()) }
+        coVerify(exactly = 1) { repository.obtenerProfesionales("token-1") }
+        coVerify(exactly = 0) { repository.obtenerProfesionales("token-2") }
     }
 
-    @Test
-    fun `una CancellationException deja de cargar y no publica estado`() {
-        repository.throwable = CancellationException("cancelado")
+    test("una CancellationException deja de cargar y no publica estado") {
+        coEvery { repository.obtenerProfesionales(any()) } throws
+            CancellationException("cancelado")
 
         viewModel.obtenerProfesionales("token")
 
-        assertFalse(viewModel.isLoading.value)
-        assertNull(viewModel.profesionalesState.value)
+        viewModel.isLoading.value shouldBe false
+        viewModel.profesionalesState.value shouldBe null
     }
 
-    @Test
-    fun `limpiar deja el estado en null`() {
+    test("limpiar deja el estado en null") {
+        coEvery { repository.obtenerProfesionales(any()) } returns
+            Result.success(listOf(TestData.profesional))
+
         viewModel.obtenerProfesionales("token")
-        assertTrue(viewModel.profesionalesState.value != null)
+        viewModel.profesionalesState.value shouldBe
+            Result.success(listOf(TestData.profesional))
 
         viewModel.limpiarProfesionales()
 
-        assertNull(viewModel.profesionalesState.value)
+        viewModel.profesionalesState.value shouldBe null
     }
-}
+})

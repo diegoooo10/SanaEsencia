@@ -1,177 +1,196 @@
 package com.example.sanaescencia.ui.viewmodel
 
-import com.example.sanaescencia.testutil.FakeServicioRepository
-import com.example.sanaescencia.testutil.MainDispatcherRule
+import com.example.sanaescencia.data.repository.ServicioRepository
+import com.example.sanaescencia.testutil.MainDispatcherController
 import com.example.sanaescencia.testutil.TestData
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Rule
-import org.junit.Test
 import java.io.IOException
 
-class ServicioViewModelTest {
+class ServicioViewModelTest : FunSpec({
 
-    @get:Rule
-    val mainDispatcherRule = MainDispatcherRule()
+    val mainDispatcher = MainDispatcherController()
 
-    private val repository = FakeServicioRepository()
-    private val viewModel = ServicioViewModel(repository)
+    lateinit var repository: ServicioRepository
+    lateinit var viewModel: ServicioViewModel
 
-    @Test
-    fun `estado inicial vacio y sin carga`() {
-        assertNull(viewModel.especialidadesState.value)
-        assertNull(viewModel.serviciosState.value)
-        assertFalse(viewModel.isLoading.value)
+    beforeTest {
+        mainDispatcher.install()
+        repository = mockk()
+        viewModel = ServicioViewModel(repository)
     }
 
-    @Test
-    fun `carga especialidades exitosamente`() {
-        repository.especialidadesResult = Result.success(listOf(TestData.especialidad))
+    afterTest {
+        mainDispatcher.reset()
+    }
+
+    test("estado inicial vacio y sin carga") {
+        viewModel.especialidadesState.value shouldBe null
+        viewModel.serviciosState.value shouldBe null
+        viewModel.isLoading.value shouldBe false
+    }
+
+    test("carga especialidades exitosamente") {
+        coEvery { repository.obtenerEspecialidades("tk") } returns
+            Result.success(listOf(TestData.especialidad))
 
         viewModel.obtenerEspecialidades("tk")
 
-        assertEquals(
-            listOf(TestData.especialidad),
-            viewModel.especialidadesState.value?.getOrNull()
-        )
-        assertEquals("tk", repository.lastEspecialidadesToken)
-        assertFalse(viewModel.isLoading.value)
+        viewModel.especialidadesState.value?.getOrNull() shouldBe
+            listOf(TestData.especialidad)
+        coVerify(exactly = 1) { repository.obtenerEspecialidades("tk") }
+        viewModel.isLoading.value shouldBe false
     }
 
-    @Test
-    fun `especialidades con failure se publican`() {
+    test("especialidades con failure se publican") {
         val error = RuntimeException("sin datos")
-        repository.especialidadesResult = Result.failure(error)
+        coEvery { repository.obtenerEspecialidades(any()) } returns Result.failure(error)
 
         viewModel.obtenerEspecialidades("tk")
 
-        assertEquals(error, viewModel.especialidadesState.value?.exceptionOrNull())
+        viewModel.especialidadesState.value?.exceptionOrNull() shouldBe error
     }
 
-    @Test
-    fun `especialidades capturan excepciones`() {
-        repository.throwable = IOException("red")
+    test("especialidades capturan excepciones") {
+        coEvery { repository.obtenerEspecialidades(any()) } throws IOException("red")
 
         viewModel.obtenerEspecialidades("tk")
 
-        assertTrue(viewModel.especialidadesState.value?.exceptionOrNull() is IOException)
-        assertFalse(viewModel.isLoading.value)
+        viewModel.especialidadesState.value?.exceptionOrNull()
+            .shouldBeInstanceOf<IOException>()
+        viewModel.isLoading.value shouldBe false
     }
 
-    @Test
-    fun `carga servicios con y sin filtro`() {
+    test("carga servicios con y sin filtro") {
+        coEvery { repository.obtenerServicios("tk", null) } returns
+            Result.success(listOf(TestData.servicio))
+        coEvery { repository.obtenerServicios("tk", 3) } returns
+            Result.success(listOf(TestData.servicio))
+
         viewModel.obtenerServicios("tk")
-        assertTrue(repository.serviciosFilterWasNull)
-        assertEquals(1, repository.serviciosCalls)
+        coVerify(exactly = 1) { repository.obtenerServicios("tk", null) }
 
         viewModel.obtenerServicios("tk", 3)
-        assertEquals(3, repository.lastEspecialidadId)
-        assertEquals(2, repository.serviciosCalls)
+        coVerify(exactly = 1) { repository.obtenerServicios("tk", 3) }
+        coVerify(exactly = 2) { repository.obtenerServicios("tk", any()) }
     }
 
-    @Test
-    fun `servicios con failure se publican`() {
-        repository.serviciosResult = Result.failure(IllegalStateException("nada"))
+    test("servicios con failure se publican") {
+        coEvery { repository.obtenerServicios(any(), any()) } returns
+            Result.failure(IllegalStateException("nada"))
 
         viewModel.obtenerServicios("tk", 1)
 
-        assertEquals("nada", viewModel.serviciosState.value?.exceptionOrNull()?.message)
+        viewModel.serviciosState.value?.exceptionOrNull()?.message shouldBe "nada"
     }
 
-    @Test
-    fun `servicios capturan excepciones`() {
-        repository.throwable = IOException("red")
+    test("servicios capturan excepciones") {
+        coEvery { repository.obtenerServicios(any(), any()) } throws IOException("red")
 
         viewModel.obtenerServicios("tk", 1)
 
-        assertTrue(viewModel.serviciosState.value?.exceptionOrNull() is IOException)
+        viewModel.serviciosState.value?.exceptionOrNull().shouldBeInstanceOf<IOException>()
     }
 
-    @Test
-    fun `ignora llamadas concurrentes`() {
+    test("ignora llamadas concurrentes") {
         val gate = CompletableDeferred<Unit>()
-        repository.gate = gate
+        coEvery { repository.obtenerEspecialidades(any()) } coAnswers {
+            gate.await()
+            Result.success(listOf(TestData.especialidad))
+        }
 
         viewModel.obtenerEspecialidades("tk")
         viewModel.obtenerServicios("tk")
 
-        assertEquals(1, repository.especialidadesCalls)
-        assertEquals(0, repository.serviciosCalls)
-        assertTrue(viewModel.isLoading.value)
+        coVerify(exactly = 1) { repository.obtenerEspecialidades(any()) }
+        coVerify(exactly = 0) { repository.obtenerServicios(any(), any()) }
+        viewModel.isLoading.value shouldBe true
 
         gate.complete(Unit)
-        assertFalse(viewModel.isLoading.value)
+
+        viewModel.isLoading.value shouldBe false
     }
 
-    @Test
-    fun `cargarDatos obtiene especialidades y luego servicios`() {
-        viewModel.cargarDatos("tk")
-
-        assertEquals(1, repository.especialidadesCalls)
-        assertEquals(1, repository.serviciosCalls)
-        assertTrue(viewModel.especialidadesState.value?.isSuccess == true)
-        assertTrue(viewModel.serviciosState.value?.isSuccess == true)
-        assertFalse(viewModel.isLoading.value)
-    }
-
-    @Test
-    fun `cargarDatos no pide servicios si fallan las especialidades`() {
-        repository.especialidadesResult = Result.failure(IOException("caido"))
+    test("cargarDatos obtiene especialidades y luego servicios") {
+        coEvery { repository.obtenerEspecialidades("tk") } returns
+            Result.success(listOf(TestData.especialidad))
+        coEvery { repository.obtenerServicios("tk", null) } returns
+            Result.success(listOf(TestData.servicio))
 
         viewModel.cargarDatos("tk")
 
-        assertTrue(viewModel.especialidadesState.value?.isFailure == true)
-        assertNull(viewModel.serviciosState.value)
-        assertEquals(0, repository.serviciosCalls)
+        coVerify(exactly = 1) { repository.obtenerEspecialidades("tk") }
+        coVerify(exactly = 1) { repository.obtenerServicios("tk", null) }
+        viewModel.especialidadesState.value?.isSuccess shouldBe true
+        viewModel.serviciosState.value?.isSuccess shouldBe true
+        viewModel.isLoading.value shouldBe false
     }
 
-    @Test
-    fun `cargarDatos convierte una excepcion en failure de servicios`() {
-        repository.throwable = IOException("boom")
+    test("cargarDatos no pide servicios si fallan las especialidades") {
+        coEvery { repository.obtenerEspecialidades(any()) } returns
+            Result.failure(IOException("caido"))
 
         viewModel.cargarDatos("tk")
 
-        assertTrue(viewModel.serviciosState.value?.isFailure == true)
-        assertNull(viewModel.especialidadesState.value)
-        assertFalse(viewModel.isLoading.value)
+        viewModel.especialidadesState.value?.isFailure shouldBe true
+        viewModel.serviciosState.value shouldBe null
+        coVerify(exactly = 0) { repository.obtenerServicios(any(), any()) }
     }
 
-    @Test
-    fun `cargarDatos ignora llamadas concurrentes`() {
+    test("cargarDatos convierte una excepcion en failure de servicios") {
+        coEvery { repository.obtenerEspecialidades(any()) } throws IOException("boom")
+
+        viewModel.cargarDatos("tk")
+
+        viewModel.serviciosState.value?.isFailure shouldBe true
+        viewModel.especialidadesState.value shouldBe null
+        viewModel.isLoading.value shouldBe false
+    }
+
+    test("cargarDatos ignora llamadas concurrentes") {
         val gate = CompletableDeferred<Unit>()
-        repository.gate = gate
+        coEvery { repository.obtenerEspecialidades(any()) } coAnswers {
+            gate.await()
+            Result.success(listOf(TestData.especialidad))
+        }
 
         viewModel.cargarDatos("tk")
         viewModel.cargarDatos("tk-2")
 
-        assertEquals(1, repository.especialidadesCalls)
+        coVerify(exactly = 1) { repository.obtenerEspecialidades(any()) }
 
         gate.complete(Unit)
     }
 
-    @Test
-    fun `una CancellationException no deja loading activo`() {
-        repository.throwable = CancellationException("cancelado")
+    test("una CancellationException no deja loading activo") {
+        coEvery { repository.obtenerEspecialidades(any()) } throws
+            CancellationException("cancelado")
 
         viewModel.obtenerEspecialidades("tk")
 
-        assertFalse(viewModel.isLoading.value)
-        assertNull(viewModel.especialidadesState.value)
+        viewModel.isLoading.value shouldBe false
+        viewModel.especialidadesState.value shouldBe null
     }
 
-    @Test
-    fun `limpiar estados`() {
+    test("limpiar estados") {
+        coEvery { repository.obtenerEspecialidades(any()) } returns
+            Result.success(listOf(TestData.especialidad))
+        coEvery { repository.obtenerServicios(any(), any()) } returns
+            Result.success(listOf(TestData.servicio))
+
         viewModel.obtenerEspecialidades("tk")
         viewModel.obtenerServicios("tk")
 
         viewModel.limpiarEspecialidades()
         viewModel.limpiarServicios()
 
-        assertNull(viewModel.especialidadesState.value)
-        assertNull(viewModel.serviciosState.value)
+        viewModel.especialidadesState.value shouldBe null
+        viewModel.serviciosState.value shouldBe null
     }
-}
+})

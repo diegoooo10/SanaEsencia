@@ -1,268 +1,309 @@
 package com.example.sanaescencia.ui.viewmodel
 
-import com.example.sanaescencia.testutil.FakeReservaRepository
-import com.example.sanaescencia.testutil.MainDispatcherRule
+import com.example.sanaescencia.data.model.Reserva
+import com.example.sanaescencia.data.remote.dto.InicioPagoResponse
+import com.example.sanaescencia.data.repository.ReservaRepository
+import com.example.sanaescencia.testutil.MainDispatcherController
 import com.example.sanaescencia.testutil.TestData
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Rule
-import org.junit.Test
 import java.io.IOException
 import java.time.LocalDate
 import java.time.LocalTime
 
-class ReservaViewModelTest {
+class ReservaViewModelTest : FunSpec({
 
-    @get:Rule
-    val mainDispatcherRule = MainDispatcherRule()
+    val mainDispatcher = MainDispatcherController()
 
-    private val repository = FakeReservaRepository()
-    private val viewModel = ReservaViewModel(repository)
+    lateinit var repository: ReservaRepository
+    lateinit var viewModel: ReservaViewModel
 
-    private val fecha = LocalDate.of(2026, 12, 1)
+    val fecha = LocalDate.of(2026, 12, 1)
 
-    @Test
-    fun `estados iniciales vacios y sin carga`() {
-        assertNull(viewModel.horariosState.value)
-        assertNull(viewModel.reservasState.value)
-        assertNull(viewModel.reservaDetalleState.value)
-        assertNull(viewModel.crearReservaState.value)
-        assertNull(viewModel.cancelacionState.value)
-        assertNull(viewModel.inicioPagoState.value)
-        assertFalse(viewModel.isLoadingHorarios.value)
-        assertFalse(viewModel.isLoadingReservas.value)
-        assertFalse(viewModel.isLoadingDetalle.value)
-        assertFalse(viewModel.isLoadingCrear.value)
-        assertFalse(viewModel.isLoadingCancelacion.value)
-        assertFalse(viewModel.isLoadingPago.value)
+    beforeTest {
+        mainDispatcher.install()
+        repository = mockk()
+        viewModel = ReservaViewModel(repository)
     }
 
-    @Test
-    fun `obtiene horarios y envia los parametros correctos`() {
-        repository.horariosResult = Result.success(listOf(LocalTime.of(8, 0)))
+    afterTest {
+        mainDispatcher.reset()
+    }
+
+    test("estados iniciales vacios y sin carga") {
+        viewModel.horariosState.value shouldBe null
+        viewModel.reservasState.value shouldBe null
+        viewModel.reservaDetalleState.value shouldBe null
+        viewModel.crearReservaState.value shouldBe null
+        viewModel.cancelacionState.value shouldBe null
+        viewModel.inicioPagoState.value shouldBe null
+        viewModel.isLoadingHorarios.value shouldBe false
+        viewModel.isLoadingReservas.value shouldBe false
+        viewModel.isLoadingDetalle.value shouldBe false
+        viewModel.isLoadingCrear.value shouldBe false
+        viewModel.isLoadingCancelacion.value shouldBe false
+        viewModel.isLoadingPago.value shouldBe false
+    }
+
+    test("obtiene horarios y envia los parametros correctos") {
+        coEvery {
+            repository.obtenerHorariosDisponibles("tk", 3L, 4L, fecha, "Online")
+        } returns Result.success(listOf(LocalTime.of(8, 0)))
 
         viewModel.obtenerHorariosDisponibles("tk", 3, 4, fecha, "Online")
 
-        assertEquals(
-            listOf(LocalTime.of(8, 0)),
-            viewModel.horariosState.value?.getOrNull()
-        )
-        assertEquals("tk", repository.lastHorariosToken)
-        assertEquals(3L, repository.lastProfesionalId)
-        assertEquals(4L, repository.lastServicioId)
-        assertEquals(fecha, repository.lastFecha)
-        assertEquals("Online", repository.lastModalidad)
-        assertFalse(viewModel.isLoadingHorarios.value)
+        viewModel.horariosState.value?.getOrNull() shouldBe listOf(LocalTime.of(8, 0))
+        coVerify(exactly = 1) {
+            repository.obtenerHorariosDisponibles("tk", 3L, 4L, fecha, "Online")
+        }
+        viewModel.isLoadingHorarios.value shouldBe false
     }
 
-    @Test
-    fun `horarios con failure se publican`() {
-        repository.horariosResult = Result.failure(IllegalStateException("sin cupo"))
+    test("horarios con failure se publican") {
+        coEvery { repository.obtenerHorariosDisponibles(any(), any(), any(), any(), any()) } returns
+            Result.failure(IllegalStateException("sin cupo"))
 
         viewModel.obtenerHorariosDisponibles("tk", 1, 2, fecha, "Presencial")
 
-        assertEquals("sin cupo", viewModel.horariosState.value?.exceptionOrNull()?.message)
+        viewModel.horariosState.value?.exceptionOrNull()?.message shouldBe "sin cupo"
     }
 
-    @Test
-    fun `horarios capturan excepciones`() {
-        repository.throwable = IOException("red")
+    test("horarios capturan excepciones") {
+        coEvery { repository.obtenerHorariosDisponibles(any(), any(), any(), any(), any()) } throws
+            IOException("red")
 
         viewModel.obtenerHorariosDisponibles("tk", 1, 2, fecha, "Presencial")
 
-        assertTrue(viewModel.horariosState.value?.exceptionOrNull() is IOException)
-        assertFalse(viewModel.isLoadingHorarios.value)
+        viewModel.horariosState.value?.exceptionOrNull().shouldBeInstanceOf<IOException>()
+        viewModel.isLoadingHorarios.value shouldBe false
     }
 
-    @Test
-    fun `marca loading de horarios mientras espera`() {
+    test("marca loading de horarios mientras espera") {
         val gate = CompletableDeferred<Unit>()
-        repository.gate = gate
+        coEvery { repository.obtenerHorariosDisponibles(any(), any(), any(), any(), any()) } coAnswers {
+            gate.await()
+            Result.success(listOf(LocalTime.of(8, 0)))
+        }
 
         viewModel.obtenerHorariosDisponibles("tk", 1, 2, fecha, "Presencial")
 
-        assertTrue(viewModel.isLoadingHorarios.value)
+        viewModel.isLoadingHorarios.value shouldBe true
 
         gate.complete(Unit)
 
-        assertFalse(viewModel.isLoadingHorarios.value)
+        viewModel.isLoadingHorarios.value shouldBe false
     }
 
-    @Test
-    fun `ignora horarios concurrentes`() {
-        repository.gate = CompletableDeferred()
+    test("ignora horarios concurrentes") {
+        val gate = CompletableDeferred<Unit>()
+        coEvery { repository.obtenerHorariosDisponibles(any(), any(), any(), any(), any()) } coAnswers {
+            gate.await()
+            Result.success(listOf(LocalTime.of(8, 0)))
+        }
 
         viewModel.obtenerHorariosDisponibles("tk", 1, 2, fecha, "Presencial")
         viewModel.obtenerHorariosDisponibles("tk", 1, 2, fecha, "Presencial")
 
-        assertEquals(1, repository.horariosCalls)
+        coVerify(exactly = 1) {
+            repository.obtenerHorariosDisponibles(any(), any(), any(), any(), any())
+        }
     }
 
-    @Test
-    fun `obtiene reservas`() {
-        repository.reservasResult = Result.success(listOf(TestData.reserva))
+    test("obtiene reservas") {
+        coEvery { repository.obtenerReservas("tk") } returns
+            Result.success(listOf(TestData.reserva))
 
         viewModel.obtenerReservas("tk")
 
-        assertEquals(listOf(TestData.reserva), viewModel.reservasState.value?.getOrNull())
-        assertEquals("tk", repository.lastReservasToken)
-        assertFalse(viewModel.isLoadingReservas.value)
+        viewModel.reservasState.value?.getOrNull() shouldBe listOf(TestData.reserva)
+        coVerify(exactly = 1) { repository.obtenerReservas("tk") }
+        viewModel.isLoadingReservas.value shouldBe false
     }
 
-    @Test
-    fun `reservas con failure y excepcion`() {
-        repository.reservasResult = Result.failure(IllegalStateException("no"))
-        viewModel.obtenerReservas("tk")
-        assertEquals("no", viewModel.reservasState.value?.exceptionOrNull()?.message)
+    test("reservas con failure y excepcion") {
+        coEvery { repository.obtenerReservas(any()) } returns
+            Result.failure(IllegalStateException("no")) andThenThrows IOException("red")
 
-        repository.throwable = IOException("red")
         viewModel.obtenerReservas("tk")
-        assertTrue(viewModel.reservasState.value?.exceptionOrNull() is IOException)
+        viewModel.reservasState.value?.exceptionOrNull()?.message shouldBe "no"
+
+        viewModel.obtenerReservas("tk")
+        viewModel.reservasState.value?.exceptionOrNull().shouldBeInstanceOf<IOException>()
     }
 
-    @Test
-    fun `ignora reservas concurrentes`() {
-        repository.gate = CompletableDeferred()
+    test("ignora reservas concurrentes") {
+        val gate = CompletableDeferred<Unit>()
+        coEvery { repository.obtenerReservas(any()) } coAnswers {
+            gate.await()
+            Result.success(listOf(TestData.reserva))
+        }
 
         viewModel.obtenerReservas("tk")
         viewModel.obtenerReservas("tk")
 
-        assertEquals(1, repository.reservasCalls)
+        coVerify(exactly = 1) { repository.obtenerReservas(any()) }
     }
 
-    @Test
-    fun `obtiene detalle de reserva`() {
-        repository.detalleResult = Result.success(TestData.reserva)
+    test("obtiene detalle de reserva") {
+        coEvery { repository.obtenerReservaPorId("tk", 100L) } returns
+            Result.success(TestData.reserva)
 
         viewModel.obtenerReservaPorId("tk", 100)
 
-        assertEquals(TestData.reserva, viewModel.reservaDetalleState.value?.getOrNull())
-        assertEquals(100L, repository.lastDetalleId)
-        assertFalse(viewModel.isLoadingDetalle.value)
+        viewModel.reservaDetalleState.value?.getOrNull() shouldBe TestData.reserva
+        coVerify(exactly = 1) { repository.obtenerReservaPorId("tk", 100L) }
+        viewModel.isLoadingDetalle.value shouldBe false
     }
 
-    @Test
-    fun `detalle con failure y excepcion`() {
-        repository.detalleResult = Result.failure(IllegalStateException("404"))
+    test("detalle con failure y excepcion") {
+        coEvery { repository.obtenerReservaPorId(any(), any()) } returns
+            Result.failure(IllegalStateException("404")) andThenThrows IOException("red")
+
         viewModel.obtenerReservaPorId("tk", 1)
-        assertEquals("404", viewModel.reservaDetalleState.value?.exceptionOrNull()?.message)
+        viewModel.reservaDetalleState.value?.exceptionOrNull()?.message shouldBe "404"
 
-        repository.throwable = IOException("red")
         viewModel.obtenerReservaPorId("tk", 1)
-        assertTrue(viewModel.reservaDetalleState.value?.exceptionOrNull() is IOException)
+        viewModel.reservaDetalleState.value?.exceptionOrNull()
+            .shouldBeInstanceOf<IOException>()
     }
 
-    @Test
-    fun `crea reserva y envia el request`() {
-        repository.crearResult = Result.success(TestData.reserva)
+    test("crea reserva y envia el request") {
+        coEvery { repository.crearReserva("tk", TestData.reservaRequest) } returns
+            Result.success(TestData.reserva)
 
         viewModel.crearReserva("tk", TestData.reservaRequest)
 
-        assertEquals(TestData.reserva, viewModel.crearReservaState.value?.getOrNull())
-        assertEquals(TestData.reservaRequest, repository.lastCrearRequest)
-        assertFalse(viewModel.isLoadingCrear.value)
+        viewModel.crearReservaState.value?.getOrNull() shouldBe TestData.reserva
+        coVerify(exactly = 1) { repository.crearReserva("tk", TestData.reservaRequest) }
+        viewModel.isLoadingCrear.value shouldBe false
     }
 
-    @Test
-    fun `creacion con failure y excepcion`() {
-        repository.crearResult = Result.failure(IllegalStateException("horario ocupado"))
-        viewModel.crearReserva("tk", TestData.reservaRequest)
-        assertEquals(
-            "horario ocupado",
-            viewModel.crearReservaState.value?.exceptionOrNull()?.message
-        )
-
-        repository.throwable = IOException("red")
-        viewModel.crearReserva("tk", TestData.reservaRequest)
-        assertTrue(viewModel.crearReservaState.value?.exceptionOrNull() is IOException)
-    }
-
-    @Test
-    fun `ignora creaciones concurrentes`() {
-        repository.gate = CompletableDeferred()
+    test("creacion con failure y excepcion") {
+        coEvery { repository.crearReserva(any(), any()) } returns
+            Result.failure(IllegalStateException("horario ocupado")) andThenThrows
+            IOException("red")
 
         viewModel.crearReserva("tk", TestData.reservaRequest)
+        viewModel.crearReservaState.value?.exceptionOrNull()?.message shouldBe
+            "horario ocupado"
+
+        viewModel.crearReserva("tk", TestData.reservaRequest)
+        viewModel.crearReservaState.value?.exceptionOrNull().shouldBeInstanceOf<IOException>()
+    }
+
+    test("ignora creaciones concurrentes") {
+        val gate = CompletableDeferred<Unit>()
+        coEvery { repository.crearReserva(any(), any()) } coAnswers {
+            gate.await()
+            Result.success(TestData.reserva)
+        }
+
+        viewModel.crearReserva("tk", TestData.reservaRequest)
         viewModel.crearReserva("tk", TestData.reservaRequest)
 
-        assertEquals(1, repository.crearCalls)
+        coVerify(exactly = 1) { repository.crearReserva(any(), any()) }
     }
 
-    @Test
-    fun `cancela reserva`() {
+    test("cancela reserva") {
+        coEvery { repository.cancelarReserva("tk", 9L) } returns Result.success(Unit)
+
         viewModel.cancelarReserva("tk", 9)
 
-        assertEquals(Unit, viewModel.cancelacionState.value?.getOrNull())
-        assertEquals(9L, repository.lastCancelarId)
-        assertFalse(viewModel.isLoadingCancelacion.value)
+        viewModel.cancelacionState.value?.getOrNull() shouldBe Unit
+        coVerify(exactly = 1) { repository.cancelarReserva("tk", 9L) }
+        viewModel.isLoadingCancelacion.value shouldBe false
     }
 
-    @Test
-    fun `cancelacion con failure y excepcion`() {
-        repository.cancelarResult = Result.failure(IllegalStateException("muy tarde"))
-        viewModel.cancelarReserva("tk", 9)
-        assertEquals("muy tarde", viewModel.cancelacionState.value?.exceptionOrNull()?.message)
-
-        repository.throwable = IOException("red")
-        viewModel.cancelarReserva("tk", 9)
-        assertTrue(viewModel.cancelacionState.value?.exceptionOrNull() is IOException)
-    }
-
-    @Test
-    fun `ignora cancelaciones concurrentes`() {
-        repository.gate = CompletableDeferred()
+    test("cancelacion con failure y excepcion") {
+        coEvery { repository.cancelarReserva(any(), any()) } returns
+            Result.failure(IllegalStateException("muy tarde")) andThenThrows
+            IOException("red")
 
         viewModel.cancelarReserva("tk", 9)
+        viewModel.cancelacionState.value?.exceptionOrNull()?.message shouldBe "muy tarde"
+
+        viewModel.cancelarReserva("tk", 9)
+        viewModel.cancelacionState.value?.exceptionOrNull().shouldBeInstanceOf<IOException>()
+    }
+
+    test("ignora cancelaciones concurrentes") {
+        val gate = CompletableDeferred<Unit>()
+        coEvery { repository.cancelarReserva(any(), any()) } coAnswers {
+            gate.await()
+            Result.success(Unit)
+        }
+
+        viewModel.cancelarReserva("tk", 9)
         viewModel.cancelarReserva("tk", 9)
 
-        assertEquals(1, repository.cancelarCalls)
+        coVerify(exactly = 1) { repository.cancelarReserva(any(), any()) }
     }
 
-    @Test
-    fun `inicia pago`() {
+    test("inicia pago") {
+        coEvery { repository.iniciarPago("tk", 100L) } returns
+            Result.success(TestData.inicioPago)
+
         viewModel.iniciarPago("tk", 100)
 
-        assertEquals(TestData.inicioPago, viewModel.inicioPagoState.value?.getOrNull())
-        assertEquals(100L, repository.lastPagoReservaId)
-        assertFalse(viewModel.isLoadingPago.value)
+        viewModel.inicioPagoState.value?.getOrNull() shouldBe TestData.inicioPago
+        coVerify(exactly = 1) { repository.iniciarPago("tk", 100L) }
+        viewModel.isLoadingPago.value shouldBe false
     }
 
-    @Test
-    fun `pago con failure y excepcion`() {
-        repository.pagoResult = Result.failure(IllegalStateException("rechazado"))
-        viewModel.iniciarPago("tk", 100)
-        assertEquals("rechazado", viewModel.inicioPagoState.value?.exceptionOrNull()?.message)
+    test("pago con failure y excepcion") {
+        coEvery { repository.iniciarPago(any(), any()) } returns
+            Result.failure(IllegalStateException("rechazado")) andThenThrows
+            IOException("red")
 
-        repository.throwable = IOException("red")
         viewModel.iniciarPago("tk", 100)
-        assertTrue(viewModel.inicioPagoState.value?.exceptionOrNull() is IOException)
+        viewModel.inicioPagoState.value?.exceptionOrNull()?.message shouldBe "rechazado"
+
+        viewModel.iniciarPago("tk", 100)
+        viewModel.inicioPagoState.value?.exceptionOrNull().shouldBeInstanceOf<IOException>()
     }
 
-    @Test
-    fun `ignora pagos concurrentes`() {
-        repository.gate = CompletableDeferred()
+    test("ignora pagos concurrentes") {
+        val gate = CompletableDeferred<Unit>()
+        coEvery { repository.iniciarPago(any(), any()) } coAnswers {
+            gate.await()
+            Result.success(TestData.inicioPago)
+        }
 
         viewModel.iniciarPago("tk", 100)
         viewModel.iniciarPago("tk", 100)
 
-        assertEquals(1, repository.pagoCalls)
+        coVerify(exactly = 1) { repository.iniciarPago(any(), any()) }
     }
 
-    @Test
-    fun `una CancellationException no deja loading activo`() {
-        repository.throwable = CancellationException("cancelado")
+    test("una CancellationException no deja loading activo") {
+        coEvery { repository.obtenerReservas(any()) } throws
+            CancellationException("cancelado")
 
         viewModel.obtenerReservas("tk")
 
-        assertFalse(viewModel.isLoadingReservas.value)
-        assertNull(viewModel.reservasState.value)
+        viewModel.isLoadingReservas.value shouldBe false
+        viewModel.reservasState.value shouldBe null
     }
 
-    @Test
-    fun `limpiar todos los estados`() {
+    test("limpiar todos los estados") {
+        coEvery { repository.obtenerHorariosDisponibles(any(), any(), any(), any(), any()) } returns
+            Result.success(listOf(LocalTime.of(8, 0)))
+        coEvery { repository.obtenerReservas(any()) } returns
+            Result.success(listOf(TestData.reserva))
+        coEvery { repository.obtenerReservaPorId(any(), any()) } returns
+            Result.success(TestData.reserva)
+        coEvery { repository.crearReserva(any(), any()) } returns
+            Result.success(TestData.reserva)
+        coEvery { repository.cancelarReserva(any(), any()) } returns Result.success(Unit)
+        coEvery { repository.iniciarPago(any(), any()) } returns
+            Result.success(TestData.inicioPago)
+
         viewModel.obtenerHorariosDisponibles("tk", 1, 2, fecha, "Online")
         viewModel.obtenerReservas("tk")
         viewModel.obtenerReservaPorId("tk", 1)
@@ -277,11 +318,11 @@ class ReservaViewModelTest {
         viewModel.limpiarCancelacion()
         viewModel.limpiarInicioPago()
 
-        assertNull(viewModel.horariosState.value)
-        assertNull(viewModel.reservasState.value)
-        assertNull(viewModel.reservaDetalleState.value)
-        assertNull(viewModel.crearReservaState.value)
-        assertNull(viewModel.cancelacionState.value)
-        assertNull(viewModel.inicioPagoState.value)
+        viewModel.horariosState.value shouldBe null
+        viewModel.reservasState.value shouldBe null
+        viewModel.reservaDetalleState.value shouldBe null
+        viewModel.crearReservaState.value shouldBe null
+        viewModel.cancelacionState.value shouldBe null
+        viewModel.inicioPagoState.value shouldBe null
     }
-}
+})

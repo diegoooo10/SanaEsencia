@@ -1,85 +1,82 @@
 package com.example.sanaescencia.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
-import com.example.sanaescencia.testutil.FakeProfesionalRepository
-import com.example.sanaescencia.testutil.FakeReservaRepository
-import com.example.sanaescencia.testutil.FakeServicioRepository
-import com.example.sanaescencia.testutil.FakeUsuarioRepository
-import org.junit.Assert.assertThrows
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import com.example.sanaescencia.data.repository.ProfesionalRepository
+import com.example.sanaescencia.data.repository.ReservaRepository
+import com.example.sanaescencia.data.repository.ServicioRepository
+import com.example.sanaescencia.data.repository.UsuarioRepository
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.mockk
 
-class ViewModelFactoriesTest {
+class ViewModelFactoriesTest : FunSpec({
 
-    private class ViewModelDesconocido : ViewModel()
+    class ViewModelDesconocido : ViewModel()
 
-    @Test
-    fun `ProfesionalViewModelFactory crea su ViewModel`() {
-        val factory = ProfesionalViewModelFactory(FakeProfesionalRepository())
+    test("ProfesionalViewModelFactory crea su ViewModel") {
+        val factory = ProfesionalViewModelFactory(mockk<ProfesionalRepository>())
 
-        val viewModel = factory.create(ProfesionalViewModel::class.java)
-
-        assertTrue(viewModel is ProfesionalViewModel)
+        factory.create(ProfesionalViewModel::class.java)
+            .shouldBeInstanceOf<ProfesionalViewModel>()
     }
 
-    @Test
-    fun `ProfesionalViewModelFactory rechaza otras clases`() {
-        val factory = ProfesionalViewModelFactory(FakeProfesionalRepository())
+    test("ProfesionalViewModelFactory rechaza otras clases") {
+        val factory = ProfesionalViewModelFactory(mockk<ProfesionalRepository>())
 
-        val error = assertThrows(IllegalArgumentException::class.java) {
+        val error = shouldThrow<IllegalArgumentException> {
             factory.create(ViewModelDesconocido::class.java)
         }
 
-        assertTrue(error.message.orEmpty().contains("ViewModel desconocido"))
+        error.message.orEmpty() shouldContain "ViewModel desconocido"
     }
 
-    @Test
-    fun `ServicioViewModelFactory crea su ViewModel`() {
-        val factory = ServicioViewModelFactory(FakeServicioRepository())
+    test("ServicioViewModelFactory crea su ViewModel") {
+        val factory = ServicioViewModelFactory(mockk<ServicioRepository>())
 
-        assertTrue(factory.create(ServicioViewModel::class.java) is ServicioViewModel)
+        factory.create(ServicioViewModel::class.java)
+            .shouldBeInstanceOf<ServicioViewModel>()
     }
 
-    @Test
-    fun `ServicioViewModelFactory rechaza otras clases`() {
-        val factory = ServicioViewModelFactory(FakeServicioRepository())
+    test("ServicioViewModelFactory rechaza otras clases") {
+        val factory = ServicioViewModelFactory(mockk<ServicioRepository>())
 
-        assertThrows(IllegalArgumentException::class.java) {
+        shouldThrow<IllegalArgumentException> {
             factory.create(UsuarioViewModel::class.java)
         }
     }
 
-    @Test
-    fun `ReservaViewModelFactory crea su ViewModel`() {
-        val factory = ReservaViewModelFactory(FakeReservaRepository())
+    test("ReservaViewModelFactory crea su ViewModel") {
+        val factory = ReservaViewModelFactory(mockk<ReservaRepository>())
 
-        assertTrue(factory.create(ReservaViewModel::class.java) is ReservaViewModel)
+        factory.create(ReservaViewModel::class.java)
+            .shouldBeInstanceOf<ReservaViewModel>()
     }
 
-    @Test
-    fun `ReservaViewModelFactory rechaza otras clases`() {
-        val factory = ReservaViewModelFactory(FakeReservaRepository())
+    test("ReservaViewModelFactory rechaza otras clases") {
+        val factory = ReservaViewModelFactory(mockk<ReservaRepository>())
 
-        val error = assertThrows(IllegalArgumentException::class.java) {
+        val error = shouldThrow<IllegalArgumentException> {
             factory.create(ViewModelDesconocido::class.java)
         }
 
-        assertTrue(error.message.orEmpty().contains("Unknown ViewModel class"))
+        error.message.orEmpty() shouldContain "Unknown ViewModel class"
     }
 
-    @Test
-    fun `UsuarioViewModelFactory crea su ViewModel`() {
-        val factory = UsuarioViewModelFactory(FakeUsuarioRepository())
+    test("UsuarioViewModelFactory crea su ViewModel") {
+        val factory = UsuarioViewModelFactory(mockk<UsuarioRepository>())
 
-        assertTrue(factory.create(UsuarioViewModel::class.java) is UsuarioViewModel)
+        factory.create(UsuarioViewModel::class.java)
+            .shouldBeInstanceOf<UsuarioViewModel>()
     }
 
-    @Test
-    fun `UsuarioViewModelFactory rechaza otras clases`() {
-        val factory = UsuarioViewModelFactory(FakeUsuarioRepository())
+    test("UsuarioViewModelFactory rechaza otras clases") {
+        val factory = UsuarioViewModelFactory(mockk<UsuarioRepository>())
 
-        assertThrows(IllegalArgumentException::class.java) {
+        shouldThrow<IllegalArgumentException> {
             factory.create(ProfesionalViewModel::class.java)
         }
     }
-}
+})

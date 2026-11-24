@@ -1,268 +1,313 @@
 package com.example.sanaescencia.ui.viewmodel
 
-import com.example.sanaescencia.testutil.FakeUsuarioRepository
-import com.example.sanaescencia.testutil.MainDispatcherRule
+import com.example.sanaescencia.data.remote.dto.LoginRequest
+import com.example.sanaescencia.data.remote.dto.RecuperacionPasswordRequest
+import com.example.sanaescencia.data.remote.dto.RestablecerPasswordRequest
+import com.example.sanaescencia.data.remote.dto.UsuarioRequest
+import com.example.sanaescencia.data.remote.dto.UsuarioUpdateRequest
+import com.example.sanaescencia.data.repository.UsuarioRepository
+import com.example.sanaescencia.testutil.MainDispatcherController
 import com.example.sanaescencia.testutil.TestData
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Rule
-import org.junit.Test
 import java.io.IOException
 
-class UsuarioViewModelTest {
+class UsuarioViewModelTest : FunSpec({
 
-    @get:Rule
-    val mainDispatcherRule = MainDispatcherRule()
+    val mainDispatcher = MainDispatcherController()
 
-    private val repository = FakeUsuarioRepository()
-    private val viewModel = UsuarioViewModel(repository)
+    lateinit var repository: UsuarioRepository
+    lateinit var viewModel: UsuarioViewModel
 
-    @Test
-    fun `estados iniciales vacios`() {
-        assertNull(viewModel.loginState.value)
-        assertNull(viewModel.token.value)
-        assertNull(viewModel.perfilState.value)
-        assertNull(viewModel.actualizacionState.value)
-        assertNull(viewModel.registroState.value)
-        assertNull(viewModel.recuperacionState.value)
-        assertNull(viewModel.restablecimientoState.value)
-        assertFalse(viewModel.isLoading.value)
+    beforeTest {
+        mainDispatcher.install()
+        repository = mockk()
+        viewModel = UsuarioViewModel(repository)
     }
 
-    @Test
-    fun `inicia sesion, guarda el token y carga el perfil`() {
-        repository.iniciarSesionResult = Result.success(TestData.loginResponse)
-        repository.perfilResult = Result.success(TestData.usuarioResponse)
+    afterTest {
+        mainDispatcher.reset()
+    }
+
+    test("estados iniciales vacios") {
+        viewModel.loginState.value shouldBe null
+        viewModel.token.value shouldBe null
+        viewModel.perfilState.value shouldBe null
+        viewModel.actualizacionState.value shouldBe null
+        viewModel.registroState.value shouldBe null
+        viewModel.recuperacionState.value shouldBe null
+        viewModel.restablecimientoState.value shouldBe null
+        viewModel.isLoading.value shouldBe false
+    }
+
+    test("inicia sesion, guarda el token y carga el perfil") {
+        val loginCapturado = slot<LoginRequest>()
+        coEvery { repository.iniciarSesion(capture(loginCapturado)) } returns
+            Result.success(TestData.loginResponse)
+        coEvery { repository.obtenerPerfil("jwt-token") } returns
+            Result.success(TestData.usuarioResponse)
 
         viewModel.iniciarSesion("  ana@test.cl  ", "password123")
 
-        assertEquals(TestData.loginResponse, viewModel.loginState.value?.getOrNull())
-        assertEquals("jwt-token", viewModel.token.value)
-        assertEquals(TestData.usuarioResponse, viewModel.perfilState.value?.getOrNull())
-        assertEquals("ana@test.cl", repository.lastLoginRequest?.correo)
-        assertEquals("password123", repository.lastLoginRequest?.password)
-        assertEquals("jwt-token", repository.lastPerfilToken)
-        assertFalse(viewModel.isLoading.value)
+        viewModel.loginState.value?.getOrNull() shouldBe TestData.loginResponse
+        viewModel.token.value shouldBe "jwt-token"
+        viewModel.perfilState.value?.getOrNull() shouldBe TestData.usuarioResponse
+        loginCapturado.captured.correo shouldBe "ana@test.cl"
+        loginCapturado.captured.password shouldBe "password123"
+        coVerify(exactly = 1) { repository.obtenerPerfil("jwt-token") }
+        viewModel.isLoading.value shouldBe false
     }
 
-    @Test
-    fun `login fallido no guarda token ni consulta perfil`() {
+    test("login fallido no guarda token ni consulta perfil") {
         val error = IllegalStateException("credenciales")
-        repository.iniciarSesionResult = Result.failure(error)
+        coEvery { repository.iniciarSesion(any()) } returns Result.failure(error)
 
         viewModel.iniciarSesion("ana@test.cl", "mala")
 
-        assertEquals(error, viewModel.loginState.value?.exceptionOrNull())
-        assertNull(viewModel.token.value)
-        assertEquals(0, repository.perfilCalls)
+        viewModel.loginState.value?.exceptionOrNull() shouldBe error
+        viewModel.token.value shouldBe null
+        coVerify(exactly = 0) { repository.obtenerPerfil(any()) }
     }
 
-    @Test
-    fun `login captura excepciones`() {
-        repository.throwable = IOException("red")
+    test("login captura excepciones") {
+        coEvery { repository.iniciarSesion(any()) } throws IOException("red")
 
         viewModel.iniciarSesion("ana@test.cl", "x")
 
-        assertTrue(viewModel.loginState.value?.exceptionOrNull() is IOException)
-        assertFalse(viewModel.isLoading.value)
+        viewModel.loginState.value?.exceptionOrNull().shouldBeInstanceOf<IOException>()
+        viewModel.isLoading.value shouldBe false
     }
 
-    @Test
-    fun `login ignora llamadas concurrentes`() {
-        repository.gate = CompletableDeferred()
+    test("login ignora llamadas concurrentes") {
+        val gate = CompletableDeferred<Unit>()
+        coEvery { repository.iniciarSesion(any()) } coAnswers {
+            gate.await()
+            Result.success(TestData.loginResponse)
+        }
 
         viewModel.iniciarSesion("ana@test.cl", "x")
         viewModel.iniciarSesion("otra@test.cl", "y")
 
-        assertEquals(1, repository.loginCalls)
-        assertTrue(viewModel.isLoading.value)
+        coVerify(exactly = 1) { repository.iniciarSesion(any()) }
+        viewModel.isLoading.value shouldBe true
     }
 
-    @Test
-    fun `registra un usuario`() {
+    test("registra un usuario") {
+        val capturado = slot<UsuarioRequest>()
+        coEvery { repository.registrar(capture(capturado)) } returns
+            Result.success(TestData.usuarioResponse)
+
         viewModel.registrar(TestData.usuarioRequest)
 
-        assertEquals(TestData.usuarioResponse, viewModel.registroState.value?.getOrNull())
-        assertEquals(TestData.usuarioRequest, repository.lastRegistrarRequest)
-        assertFalse(viewModel.isLoading.value)
+        viewModel.registroState.value?.getOrNull() shouldBe TestData.usuarioResponse
+        capturado.captured shouldBe TestData.usuarioRequest
+        viewModel.isLoading.value shouldBe false
     }
 
-    @Test
-    fun `registro fallido y excepcion`() {
-        repository.registrarResult = Result.failure(IllegalStateException("correo duplicado"))
-        viewModel.registrar(TestData.usuarioRequest)
-        assertEquals(
-            "correo duplicado",
-            viewModel.registroState.value?.exceptionOrNull()?.message
-        )
+    test("registro fallido y excepcion") {
+        coEvery { repository.registrar(any()) } returns
+            Result.failure(IllegalStateException("correo duplicado")) andThenThrows
+            IOException("red")
 
-        repository.throwable = IOException("red")
         viewModel.registrar(TestData.usuarioRequest)
-        assertTrue(viewModel.registroState.value?.exceptionOrNull() is IOException)
+        viewModel.registroState.value?.exceptionOrNull()?.message shouldBe "correo duplicado"
+
+        viewModel.registrar(TestData.usuarioRequest)
+        viewModel.registroState.value?.exceptionOrNull().shouldBeInstanceOf<IOException>()
     }
 
-    @Test
-    fun `registro ignora llamadas concurrentes`() {
-        repository.gate = CompletableDeferred()
+    test("registro ignora llamadas concurrentes") {
+        val gate = CompletableDeferred<Unit>()
+        coEvery { repository.registrar(any()) } coAnswers {
+            gate.await()
+            Result.success(TestData.usuarioResponse)
+        }
 
         viewModel.registrar(TestData.usuarioRequest)
         viewModel.registrar(TestData.usuarioRequest)
 
-        assertEquals(1, repository.registrarCalls)
+        coVerify(exactly = 1) { repository.registrar(any()) }
     }
 
-    @Test
-    fun `obtenerPerfil sin token no realiza peticion`() {
+    test("obtenerPerfil sin token no realiza peticion") {
         viewModel.obtenerPerfil()
 
-        assertEquals(0, repository.perfilCalls)
-        assertNull(viewModel.perfilState.value)
+        coVerify(exactly = 0) { repository.obtenerPerfil(any()) }
+        viewModel.perfilState.value shouldBe null
     }
 
-    @Test
-    fun `obtenerPerfil usa el token guardado`() {
-        repository.iniciarSesionResult = Result.success(TestData.loginResponse)
+    test("obtenerPerfil usa el token guardado") {
+        coEvery { repository.iniciarSesion(any()) } returns
+            Result.success(TestData.loginResponse)
+        coEvery { repository.obtenerPerfil("jwt-token") } returns
+            Result.success(TestData.usuarioResponse) andThen
+            Result.failure(IOException("perfil"))
+
         viewModel.iniciarSesion("ana@test.cl", "x")
-
-        repository.perfilCalls = 0
-        repository.perfilResult = Result.failure(IOException("perfil"))
-
         viewModel.obtenerPerfil()
 
-        assertEquals(1, repository.perfilCalls)
-        assertTrue(viewModel.perfilState.value?.isFailure == true)
+        coVerify(exactly = 2) { repository.obtenerPerfil("jwt-token") }
+        viewModel.perfilState.value?.isFailure shouldBe true
     }
 
-    @Test
-    fun `actualizarPerfil sin sesion devuelve IllegalStateException`() {
+    test("actualizarPerfil sin sesion devuelve IllegalStateException") {
         viewModel.actualizarPerfil(TestData.usuarioUpdateRequest)
 
         val error = viewModel.actualizacionState.value?.exceptionOrNull()
-        assertTrue(error is IllegalStateException)
-        assertEquals("No hay una sesi\u00f3n activa", error?.message)
-        assertEquals(0, repository.actualizarCalls)
+        error.shouldBeInstanceOf<IllegalStateException>()
+        error?.message shouldBe "No hay una sesi\u00f3n activa"
+        coVerify(exactly = 0) { repository.actualizarPerfil(any(), any()) }
     }
 
-    @Test
-    fun `actualizarPerfil exitoso actualiza el perfil`() {
-        repository.iniciarSesionResult = Result.success(TestData.loginResponse)
+    test("actualizarPerfil exitoso actualiza el perfil") {
+        coEvery { repository.iniciarSesion(any()) } returns
+            Result.success(TestData.loginResponse)
+        coEvery { repository.obtenerPerfil(any()) } returns
+            Result.success(TestData.usuarioResponse)
+
         viewModel.iniciarSesion("ana@test.cl", "x")
 
         val actualizado = TestData.usuarioResponse.copy(telefono = "+56 9 00000000")
-        repository.actualizarResult = Result.success(actualizado)
+        val capturado = slot<UsuarioUpdateRequest>()
+        coEvery { repository.actualizarPerfil("jwt-token", capture(capturado)) } returns
+            Result.success(actualizado)
 
         viewModel.actualizarPerfil(TestData.usuarioUpdateRequest)
 
-        assertEquals(actualizado, viewModel.actualizacionState.value?.getOrNull())
-        assertEquals(actualizado, viewModel.perfilState.value?.getOrNull())
-        assertEquals("jwt-token", repository.lastActualizarToken)
-        assertEquals(TestData.usuarioUpdateRequest, repository.lastActualizarRequest)
-        assertFalse(viewModel.isLoading.value)
+        viewModel.actualizacionState.value?.getOrNull() shouldBe actualizado
+        viewModel.perfilState.value?.getOrNull() shouldBe actualizado
+        capturado.captured shouldBe TestData.usuarioUpdateRequest
+        viewModel.isLoading.value shouldBe false
     }
 
-    @Test
-    fun `actualizarPerfil fallido no toca el perfil y captura excepciones`() {
-        repository.iniciarSesionResult = Result.success(TestData.loginResponse)
+    test("actualizarPerfil fallido no toca el perfil y captura excepciones") {
+        coEvery { repository.iniciarSesion(any()) } returns
+            Result.success(TestData.loginResponse)
+        coEvery { repository.obtenerPerfil(any()) } returns
+            Result.success(TestData.usuarioResponse)
+
         viewModel.iniciarSesion("ana@test.cl", "x")
         val perfilPrevio = viewModel.perfilState.value
 
-        repository.actualizarResult = Result.failure(IllegalStateException("no autorizado"))
-        viewModel.actualizarPerfil(TestData.usuarioUpdateRequest)
-        assertEquals(
-            "no autorizado",
-            viewModel.actualizacionState.value?.exceptionOrNull()?.message
-        )
-        assertEquals(perfilPrevio, viewModel.perfilState.value)
+        coEvery { repository.actualizarPerfil(any(), any()) } returns
+            Result.failure(IllegalStateException("no autorizado")) andThenThrows
+            IOException("red")
 
-        repository.throwable = IOException("red")
         viewModel.actualizarPerfil(TestData.usuarioUpdateRequest)
-        assertTrue(viewModel.actualizacionState.value?.exceptionOrNull() is IOException)
+        viewModel.actualizacionState.value?.exceptionOrNull()?.message shouldBe "no autorizado"
+        viewModel.perfilState.value shouldBe perfilPrevio
+
+        viewModel.actualizarPerfil(TestData.usuarioUpdateRequest)
+        viewModel.actualizacionState.value?.exceptionOrNull().shouldBeInstanceOf<IOException>()
     }
 
-    @Test
-    fun `actualizarPerfil ignora llamadas concurrentes`() {
-        repository.iniciarSesionResult = Result.success(TestData.loginResponse)
+    test("actualizarPerfil ignora llamadas concurrentes") {
+        coEvery { repository.iniciarSesion(any()) } returns
+            Result.success(TestData.loginResponse)
+        coEvery { repository.obtenerPerfil(any()) } returns
+            Result.success(TestData.usuarioResponse)
+
         viewModel.iniciarSesion("ana@test.cl", "x")
-        repository.gate = CompletableDeferred()
+
+        val gate = CompletableDeferred<Unit>()
+        coEvery { repository.actualizarPerfil(any(), any()) } coAnswers {
+            gate.await()
+            Result.success(TestData.usuarioResponse)
+        }
 
         viewModel.actualizarPerfil(TestData.usuarioUpdateRequest)
         viewModel.actualizarPerfil(TestData.usuarioUpdateRequest)
 
-        assertEquals(1, repository.actualizarCalls)
+        coVerify(exactly = 1) { repository.actualizarPerfil(any(), any()) }
     }
 
-    @Test
-    fun `solicita recuperacion recortando el correo`() {
+    test("solicita recuperacion recortando el correo") {
+        val capturado = slot<RecuperacionPasswordRequest>()
+        coEvery { repository.solicitarRecuperacion(capture(capturado)) } returns
+            Result.success(Unit)
+
         viewModel.solicitarRecuperacion("  ana@test.cl  ")
 
-        assertEquals(Unit, viewModel.recuperacionState.value?.getOrNull())
-        assertEquals("ana@test.cl", repository.lastRecuperacionRequest?.correo)
-        assertFalse(viewModel.isLoading.value)
+        viewModel.recuperacionState.value?.getOrNull() shouldBe Unit
+        capturado.captured.correo shouldBe "ana@test.cl"
+        viewModel.isLoading.value shouldBe false
     }
 
-    @Test
-    fun `recuperacion fallida y excepcion`() {
-        repository.recuperacionResult = Result.failure(IllegalStateException("limite"))
-        viewModel.solicitarRecuperacion("ana@test.cl")
-        assertEquals("limite", viewModel.recuperacionState.value?.exceptionOrNull()?.message)
+    test("recuperacion fallida y excepcion") {
+        coEvery { repository.solicitarRecuperacion(any()) } returns
+            Result.failure(IllegalStateException("limite")) andThenThrows
+            IOException("red")
 
-        repository.throwable = IOException("red")
         viewModel.solicitarRecuperacion("ana@test.cl")
-        assertTrue(viewModel.recuperacionState.value?.exceptionOrNull() is IOException)
+        viewModel.recuperacionState.value?.exceptionOrNull()?.message shouldBe "limite"
+
+        viewModel.solicitarRecuperacion("ana@test.cl")
+        viewModel.recuperacionState.value?.exceptionOrNull().shouldBeInstanceOf<IOException>()
     }
 
-    @Test
-    fun `restablece la password`() {
+    test("restablece la password") {
+        val capturado = slot<RestablecerPasswordRequest>()
+        coEvery { repository.restablecerPassword(capture(capturado)) } returns
+            Result.success(Unit)
+
         viewModel.restablecerPassword("reset-token", "nuevaPassword123")
 
-        assertEquals(Unit, viewModel.restablecimientoState.value?.getOrNull())
-        assertEquals("reset-token", repository.lastRestablecerRequest?.token)
-        assertEquals("nuevaPassword123", repository.lastRestablecerRequest?.nuevaPassword)
+        viewModel.restablecimientoState.value?.getOrNull() shouldBe Unit
+        capturado.captured.token shouldBe "reset-token"
+        capturado.captured.nuevaPassword shouldBe "nuevaPassword123"
     }
 
-    @Test
-    fun `restablecimiento fallido y excepcion`() {
-        repository.restablecerResult = Result.failure(IllegalStateException("token vencido"))
-        viewModel.restablecerPassword("t", "password123")
-        assertEquals(
-            "token vencido",
-            viewModel.restablecimientoState.value?.exceptionOrNull()?.message
-        )
+    test("restablecimiento fallido y excepcion") {
+        coEvery { repository.restablecerPassword(any()) } returns
+            Result.failure(IllegalStateException("token vencido")) andThenThrows
+            IOException("red")
 
-        repository.throwable = IOException("red")
         viewModel.restablecerPassword("t", "password123")
-        assertTrue(viewModel.restablecimientoState.value?.exceptionOrNull() is IOException)
+        viewModel.restablecimientoState.value?.exceptionOrNull()?.message shouldBe
+            "token vencido"
+
+        viewModel.restablecerPassword("t", "password123")
+        viewModel.restablecimientoState.value?.exceptionOrNull()
+            .shouldBeInstanceOf<IOException>()
     }
 
-    @Test
-    fun `una CancellationException no deja loading activo`() {
-        repository.throwable = CancellationException("cancelado")
+    test("una CancellationException no deja loading activo") {
+        coEvery { repository.registrar(any()) } throws CancellationException("cancelado")
 
         viewModel.registrar(TestData.usuarioRequest)
 
-        assertFalse(viewModel.isLoading.value)
-        assertNull(viewModel.registroState.value)
+        viewModel.isLoading.value shouldBe false
+        viewModel.registroState.value shouldBe null
     }
 
-    @Test
-    fun `limpiarLogin borra token, perfil y estados de sesion`() {
-        repository.iniciarSesionResult = Result.success(TestData.loginResponse)
-        viewModel.iniciarSesion("ana@test.cl", "x")
+    test("limpiarLogin borra token, perfil y estados de sesion") {
+        coEvery { repository.iniciarSesion(any()) } returns
+            Result.success(TestData.loginResponse)
+        coEvery { repository.obtenerPerfil(any()) } returns
+            Result.success(TestData.usuarioResponse)
 
+        viewModel.iniciarSesion("ana@test.cl", "x")
         viewModel.limpiarLogin()
 
-        assertNull(viewModel.loginState.value)
-        assertNull(viewModel.token.value)
-        assertNull(viewModel.perfilState.value)
-        assertNull(viewModel.actualizacionState.value)
+        viewModel.loginState.value shouldBe null
+        viewModel.token.value shouldBe null
+        viewModel.perfilState.value shouldBe null
+        viewModel.actualizacionState.value shouldBe null
     }
 
-    @Test
-    fun `limpiar estados individuales`() {
+    test("limpiar estados individuales") {
+        coEvery { repository.registrar(any()) } returns
+            Result.success(TestData.usuarioResponse)
+        coEvery { repository.solicitarRecuperacion(any()) } returns Result.success(Unit)
+        coEvery { repository.restablecerPassword(any()) } returns Result.success(Unit)
+
         viewModel.registrar(TestData.usuarioRequest)
         viewModel.solicitarRecuperacion("ana@test.cl")
         viewModel.restablecerPassword("t", "password123")
@@ -272,9 +317,9 @@ class UsuarioViewModelTest {
         viewModel.limpiarRestablecimiento()
         viewModel.limpiarActualizacion()
 
-        assertNull(viewModel.registroState.value)
-        assertNull(viewModel.recuperacionState.value)
-        assertNull(viewModel.restablecimientoState.value)
-        assertNull(viewModel.actualizacionState.value)
+        viewModel.registroState.value shouldBe null
+        viewModel.recuperacionState.value shouldBe null
+        viewModel.restablecimientoState.value shouldBe null
+        viewModel.actualizacionState.value shouldBe null
     }
-}
+})
