@@ -1,34 +1,26 @@
 package com.example.sanaescencia.data.remote
 
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import retrofit2.converter.gson.GsonConverterFactory
 
-class RetrofitClientTest {
+class RetrofitClientTest : FunSpec({
 
-    @Test
-    fun `expone la url base del backend`() {
-        assertEquals(
-            "https://sanaesencia-app.duckdns.org/",
-            RetrofitClient.retrofit.baseUrl().toString()
-        )
+    test("expone la url base del backend") {
+        RetrofitClient.retrofit.baseUrl().toString() shouldBe
+            "https://sanaesencia-app.duckdns.org/"
     }
 
-    @Test
-    fun `crea los cuatro servicios de la API`() {
-        assertNotNull(RetrofitClient.usuarioApiService)
-        assertNotNull(RetrofitClient.profesionalApiService)
-        assertNotNull(RetrofitClient.servicioApiService)
-        assertNotNull(RetrofitClient.reservaApiService)
+    test("crea los cuatro servicios de la API") {
+        RetrofitClient.usuarioApiService shouldNotBe null
+        RetrofitClient.profesionalApiService shouldNotBe null
+        RetrofitClient.servicioApiService shouldNotBe null
+        RetrofitClient.reservaApiService shouldNotBe null
     }
 
-    @Test
-    fun `los servicios usan el converter Gson`() {
-        val factories = RetrofitClient.retrofit.converterFactories()
-
-        assertTrue(
-            factories.any { it is retrofit2.converter.gson.GsonConverterFactory }
-        )
+    test("los servicios usan el converter Gson") {
+        RetrofitClient.retrofit.converterFactories()
+            .any { it is GsonConverterFactory } shouldBe true
     }
-}
+})

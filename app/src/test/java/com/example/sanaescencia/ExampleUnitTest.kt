@@ -1,17 +1,17 @@
 package com.example.sanaescencia
 
-import org.junit.Test
-
-import org.junit.Assert.*
+import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.Test
 
 /**
- * Example local unit test, which will execute on the development machine (host).
+ * Prueba de humo del entorno JUnit 5 (Jupiter).
  *
  * See [testing documentation](http://d.android.com/tools/testing).
  */
 class ExampleUnitTest {
+
     @Test
     fun addition_isCorrect() {
-        assertEquals(4, 2 + 2)
+        (2 + 2) shouldBe 4
     }
 }

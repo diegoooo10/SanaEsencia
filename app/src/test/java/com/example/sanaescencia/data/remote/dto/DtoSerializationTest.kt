@@ -10,43 +10,37 @@ import com.example.sanaescencia.data.remote.adapter.LocalTimeAdapter
 import com.example.sanaescencia.testutil.TestData
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
 import java.time.LocalDate
 import java.time.LocalTime
 
-class DtoSerializationTest {
+class DtoSerializationTest : FunSpec({
 
-    private val gson: Gson = GsonBuilder()
+    val gson: Gson = GsonBuilder()
         .registerTypeAdapter(LocalDate::class.java, LocalDateAdapter())
         .registerTypeAdapter(LocalTime::class.java, LocalTimeAdapter())
         .create()
 
-    @Test
-    fun `login request conserva correo y password`() {
+    test("login request conserva correo y password") {
         val json = gson.toJson(TestData.loginRequest)
         val recuperado = gson.fromJson(json, LoginRequest::class.java)
 
-        assertEquals(TestData.loginRequest, recuperado)
+        recuperado shouldBe TestData.loginRequest
     }
 
-    @Test
-    fun `login response expone todos sus campos`() {
+    test("login response expone todos sus campos") {
         val json = gson.toJson(TestData.loginResponse)
         val recuperado = gson.fromJson(json, LoginResponse::class.java)
 
-        assertEquals("jwt-token", recuperado.token)
-        assertEquals("Bearer", recuperado.tipo)
-        assertEquals("ana@test.cl", recuperado.correo)
-        assertEquals("CLIENTE", recuperado.rol)
-        assertEquals(3_600_000L, recuperado.expiracionMs)
+        recuperado.token shouldBe "jwt-token"
+        recuperado.tipo shouldBe "Bearer"
+        recuperado.correo shouldBe "ana@test.cl"
+        recuperado.rol shouldBe "CLIENTE"
+        recuperado.expiracionMs shouldBe 3_600_000L
     }
 
-    @Test
-    fun `usuario request con direccion y telefono nulos los omite`() {
+    test("usuario request con direccion y telefono nulos los omite") {
         val request = UsuarioRequest(
             nombre = "Ana",
             apellido = "Pérez",
@@ -59,33 +53,30 @@ class DtoSerializationTest {
 
         val json = gson.toJson(request)
 
-        assertFalse(json.contains("direccion"))
-        assertFalse(json.contains("telefono"))
-        assertEquals(request, gson.fromJson(json, UsuarioRequest::class.java))
+        json.contains("direccion") shouldBe false
+        json.contains("telefono") shouldBe false
+        gson.fromJson(json, UsuarioRequest::class.java) shouldBe request
     }
 
-    @Test
-    fun `usuario update request usa valores por defecto nulos`() {
+    test("usuario update request usa valores por defecto nulos") {
         val request = UsuarioUpdateRequest()
 
-        assertNull(request.correo)
-        assertNull(request.direccion)
-        assertNull(request.telefono)
+        request.correo shouldBe null
+        request.direccion shouldBe null
+        request.telefono shouldBe null
     }
 
-    @Test
-    fun `usuario update request solo envia campos no nulos`() {
+    test("usuario update request solo envia campos no nulos") {
         val request = UsuarioUpdateRequest(correo = "nuevo@test.cl")
 
         val json = gson.toJson(request)
 
-        assertTrue(json.contains("nuevo@test.cl"))
-        assertFalse(json.contains("direccion"))
-        assertFalse(json.contains("telefono"))
+        json.contains("nuevo@test.cl") shouldBe true
+        json.contains("direccion") shouldBe false
+        json.contains("telefono") shouldBe false
     }
 
-    @Test
-    fun `usuario response deserializa campos opcionales`() {
+    test("usuario response deserializa campos opcionales") {
         val json = """
             {
               "id": 7,
@@ -99,23 +90,21 @@ class DtoSerializationTest {
 
         val response = gson.fromJson(json, UsuarioResponse::class.java)
 
-        assertEquals(7L, response.id)
-        assertNull(response.direccion)
-        assertNull(response.telefono)
+        response.id shouldBe 7L
+        response.direccion shouldBe null
+        response.telefono shouldBe null
     }
 
-    @Test
-    fun `reserva request se serializa con fecha y hora como texto`() {
+    test("reserva request se serializa con fecha y hora como texto") {
         val json = gson.toJson(TestData.reservaRequest)
         val recuperado = gson.fromJson(json, ReservaRequest::class.java)
 
-        assertTrue(json.contains("2026-12-01"))
-        assertTrue(json.contains("10:00"))
-        assertEquals(TestData.reservaRequest, recuperado)
+        json.contains("2026-12-01") shouldBe true
+        json.contains("10:00") shouldBe true
+        recuperado shouldBe TestData.reservaRequest
     }
 
-    @Test
-    fun `recuperacion y restablecimiento conservan sus datos`() {
+    test("recuperacion y restablecimiento conservan sus datos") {
         val recuperacion = gson.fromJson(
             gson.toJson(TestData.recuperacionRequest),
             RecuperacionPasswordRequest::class.java
@@ -125,36 +114,39 @@ class DtoSerializationTest {
             RestablecerPasswordRequest::class.java
         )
 
-        assertEquals("ana@test.cl", recuperacion.correo)
-        assertEquals("reset-token", restablecer.token)
-        assertEquals("nuevaPassword123", restablecer.nuevaPassword)
+        recuperacion.correo shouldBe "ana@test.cl"
+        restablecer.token shouldBe "reset-token"
+        restablecer.nuevaPassword shouldBe "nuevaPassword123"
     }
 
-    @Test
-    fun `inicio de pago anida el pago y conserva la url`() {
+    test("inicio de pago anida el pago y conserva la url") {
         val json = gson.toJson(TestData.inicioPago)
         val recuperado = gson.fromJson(json, InicioPagoResponse::class.java)
 
-        assertEquals(TestData.inicioPago, recuperado)
-        assertEquals(25_000, recuperado.pago.monto)
-        assertEquals("OC-100", recuperado.pago.ordenCompra)
+        recuperado shouldBe TestData.inicioPago
+        recuperado.pago.monto shouldBe 25_000
+        recuperado.pago.ordenCompra shouldBe "OC-100"
     }
 
-    @Test
-    fun `modelo reserva serializa fechas con los adaptadores`() {
+    test("modelo reserva serializa fechas con los adaptadores") {
         val json = gson.toJson(TestData.reserva)
         val recuperada = gson.fromJson(json, Reserva::class.java)
 
-        assertEquals(TestData.reserva, recuperada)
-        assertEquals(LocalDate.of(2026, 12, 1), recuperada.fecha)
-        assertEquals(LocalTime.of(10, 0), recuperada.hora)
+        recuperada shouldBe TestData.reserva
+        recuperada.fecha shouldBe LocalDate.of(2026, 12, 1)
+        recuperada.hora shouldBe LocalTime.of(10, 0)
     }
 
-    @Test
-    fun `modelos de catalogo hacen round trip`() {
-        val especialidad = gson.fromJson(gson.toJson(TestData.especialidad), Especialidad::class.java)
+    test("modelos de catalogo hacen round trip") {
+        val especialidad = gson.fromJson(
+            gson.toJson(TestData.especialidad),
+            Especialidad::class.java
+        )
         val servicio = gson.fromJson(gson.toJson(TestData.servicio), Servicio::class.java)
-        val profesional = gson.fromJson(gson.toJson(TestData.profesional), Profesional::class.java)
+        val profesional = gson.fromJson(
+            gson.toJson(TestData.profesional),
+            Profesional::class.java
+        )
         val usuario = Usuario(
             id = 1L,
             nombre = "Ana",
@@ -166,14 +158,13 @@ class DtoSerializationTest {
         )
         val usuarioRecuperado = gson.fromJson(gson.toJson(usuario), Usuario::class.java)
 
-        assertEquals(TestData.especialidad, especialidad)
-        assertEquals(TestData.servicio, servicio)
-        assertEquals(TestData.profesional, profesional)
-        assertEquals(usuario, usuarioRecuperado)
+        especialidad shouldBe TestData.especialidad
+        servicio shouldBe TestData.servicio
+        profesional shouldBe TestData.profesional
+        usuarioRecuperado shouldBe usuario
     }
 
-    @Test
-    fun `usuario modelo acepta ciudad nula`() {
+    test("usuario modelo acepta ciudad nula") {
         val usuario = Usuario(
             id = 1L,
             nombre = "Ana",
@@ -184,7 +175,7 @@ class DtoSerializationTest {
             correo = "ana@test.cl"
         )
 
-        assertNull(usuario.copy().ciudad)
-        assertEquals(usuario, usuario.copy())
+        usuario.copy().ciudad shouldBe null
+        usuario.copy() shouldBe usuario
     }
-}
+})
