@@ -28,13 +28,18 @@ private data class ReservationDate(
     val label: String
 )
 
-private val reservationDates = listOf(
-    ReservationDate("2026-11-17", "Mar 17"),
-    ReservationDate("2026-11-18", "Mié 18"),
-    ReservationDate("2026-11-19", "Jue 19"),
-    ReservationDate("2026-11-20", "Vie 20"),
-    ReservationDate("2026-11-21", "Sáb 21")
-)
+private val reservationDates = List(5) { index ->
+    val date = LocalDate.now().plusDays(index.toLong())
+
+    val formatter = java.time.format.DateTimeFormatter
+        .ofPattern("EEE d", java.util.Locale("es", "CL"))
+
+    ReservationDate(
+        value = date.toString(),
+        label = date.format(formatter)
+            .replaceFirstChar { it.titlecase() }
+    )
+}
 
 @Composable
 fun NewReservationScreen(
