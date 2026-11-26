@@ -26,6 +26,8 @@ class NewPasswordScreenTest {
     private var backCalls = 0
     private var passwordGuardada: String? = null
 
+    private var passwordChangedCalls = 0
+
     private fun render(
         restablecimientoState: Result<Unit>? = null,
         isLoading: Boolean = false
@@ -35,7 +37,8 @@ class NewPasswordScreenTest {
                 onBack = { backCalls++ },
                 onSave = { passwordGuardada = it },
                 restablecimientoState = restablecimientoState,
-                isLoading = isLoading
+                isLoading = isLoading,
+                onPasswordChanged = { passwordChangedCalls++ }
             )
         }
     }
@@ -140,7 +143,22 @@ class NewPasswordScreenTest {
     fun `un resultado exitoso muestra la confirmacion`() {
         render(restablecimientoState = Result.success(Unit))
 
-        composeRule.onNodeWithText("Tu contraseña fue actualizada correctamente.").assertExists()
+        composeRule.onNodeWithText(
+            "Contraseña actualizada"
+        ).assertExists()
+
+        composeRule.onNodeWithText(
+            "Tu contraseña ha sido cambiada con éxito. Ya puedes iniciar sesión con tu nueva contraseña."
+        ).assertExists()
+
+        assertEquals(0, passwordChangedCalls)
+
+        composeRule.onNodeWithText("Aceptar")
+            .performClick()
+
+        composeRule.waitForIdle()
+
+        assertEquals(1, passwordChangedCalls)
     }
 
     @Test

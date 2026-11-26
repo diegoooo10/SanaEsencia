@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.filled.CheckCircle
 
 private val VerdeNuevaPassword = Color(0xFF617A56)
 private val FondoNuevaPassword = Color(0xFFF9F8F6)
@@ -28,7 +29,8 @@ fun NewPasswordScreen(
     onBack: () -> Unit = {},
     onSave: (String) -> Unit = {},
     restablecimientoState: Result<Unit>? = null,
-    isLoading: Boolean = false
+    isLoading: Boolean = false,
+    onPasswordChanged: () -> Unit = {}
 ) {
 
     var newPassword by remember { mutableStateOf("") }
@@ -38,6 +40,48 @@ fun NewPasswordScreen(
     var showConfirmPassword by remember { mutableStateOf(false) }
 
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // Confirmación de cambio de contraseña
+    if (restablecimientoState?.isSuccess == true) {
+        AlertDialog(
+            onDismissRequest = {},
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = VerdeNuevaPassword,
+                    modifier = Modifier.size(48.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Contraseña actualizada",
+                    color = TextoNuevaPassword,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "Tu contraseña ha sido cambiada con éxito. Ya puedes iniciar sesión con tu nueva contraseña.",
+                    color = Color.Gray
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = onPasswordChanged,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = VerdeNuevaPassword
+                    )
+                ) {
+                    Text("Aceptar")
+                }
+            },
+            containerColor = FondoNuevaPassword,
+            shape = RoundedCornerShape(24.dp)
+        )
+    }
 
     Column(
         modifier = modifier
@@ -132,7 +176,6 @@ fun NewPasswordScreen(
                 )
 
                 // Mensaje de error
-                // Mensaje de error
                 if (errorMessage != null) {
                     Text(
                         text = errorMessage!!,
@@ -141,19 +184,11 @@ fun NewPasswordScreen(
                     )
                 }
 
-                // Resultado del restablecimiento
-                restablecimientoState?.let { resultado ->
+                // Error del restablecimiento
+                if (restablecimientoState?.isFailure == true) {
                     Text(
-                        text = if (resultado.isSuccess) {
-                            "Tu contraseña fue actualizada correctamente."
-                        } else {
-                            "No fue posible restablecer la contraseña. El enlace puede ser inválido o haber expirado."
-                        },
-                        color = if (resultado.isSuccess) {
-                            VerdeNuevaPassword
-                        } else {
-                            Color(0xFFA45D50)
-                        },
+                        text = "No fue posible restablecer la contraseña. El enlace puede ser inválido o haber expirado.",
+                        color = Color(0xFFA45D50),
                         style = MaterialTheme.typography.bodySmall
                     )
                 }

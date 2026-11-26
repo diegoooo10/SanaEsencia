@@ -663,6 +663,18 @@ fun AppNavigation(
                             token = tokenRecuperacion,
                             nuevaPassword = nuevaPassword
                         )
+                    },
+                    onPasswordChanged = {
+                        usuarioViewModel.limpiarRestablecimiento()
+                        usuarioViewModel.limpiarRecuperacion()
+                        usuarioViewModel.limpiarLogin()
+
+                        navController.navigate(Routes.LOGIN) {
+                            popUpTo(navController.graph.id) {
+                                inclusive = true
+                            }
+                            launchSingleTop = true
+                        }
                     }
                 )
             }

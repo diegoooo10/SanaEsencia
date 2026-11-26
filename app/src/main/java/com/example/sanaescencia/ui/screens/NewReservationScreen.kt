@@ -2,6 +2,9 @@
 package com.example.sanaescencia.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,28 +22,20 @@ import com.example.sanaescencia.data.model.Profesional
 import com.example.sanaescencia.data.model.Servicio
 import com.example.sanaescencia.ui.viewmodel.ReservaViewModel
 import com.example.sanaescencia.data.remote.dto.ReservaRequest
+import com.example.sanaescencia.ui.components.CalendarDatePicker
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
-// Modelos de prueba
+// Precio fijo para la demo
+private const val MONTO_SERVICIO = 25_000
 
 private data class ReservationDate(
     val value: String,
     val label: String
 )
 
-private val reservationDates = List(5) { index ->
-    val date = LocalDate.now().plusDays(index.toLong())
-
-    val formatter = java.time.format.DateTimeFormatter
-        .ofPattern("EEE d", java.util.Locale("es", "CL"))
-
-    ReservationDate(
-        value = date.toString(),
-        label = date.format(formatter)
-            .replaceFirstChar { it.titlecase() }
-    )
-}
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewReservationScreen(
     profesionales: List<Profesional>,
@@ -77,8 +72,56 @@ fun NewReservationScreen(
     var selectedHour by remember { mutableStateOf<String?>(null) }
     var showConfirmationDialog by remember { mutableStateOf(false) }
 
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    val today = LocalDate.now()
+
+    var startDate by remember { mutableStateOf(today) }
+
+    val formatter = DateTimeFormatter.ofPattern(
+        "EEE d MMM", Locale("es", "CL")
+    )
+
+    val reservationDates = List(5) { index ->
+        val date = startDate.plusDays(index.toLong())
+
+        ReservationDate(
+            value = date.toString(),
+            label = date.format(formatter)
+                .replaceFirstChar { it.titlecase() }
+        )
+    }
+
     LaunchedEffect(Unit) {
         reservaViewModel.limpiarCreacion()
+    }
+
+    fun seleccionarFecha(date: ReservationDate) {
+        if (selectedDate?.value == date.value) return
+
+        selectedDate = date
+        selectedHour = null
+
+        reservaViewModel.limpiarHorarios()
+
+        val profesional = selectedProfessional
+        val servicio = selectedService
+        val modalidad = selectedModality
+
+        if (
+            profesional != null &&
+            servicio != null &&
+            modalidad != null &&
+            token.isNotBlank()
+        ) {
+            reservaViewModel.obtenerHorariosDisponibles(
+                token = token,
+                profesionalId = profesional.id.toLong(),
+                servicioId = servicio.id.toLong(),
+                fecha = LocalDate.parse(date.value),
+                modalidad = modalidad
+            )
+        }
     }
 
 
@@ -268,53 +311,80 @@ val filteredServices = servicios.filter {
             SectionTitle("5. Selecciona fecha y horario")
 
             Text(
-                text = "Fechas disponibles",
+                text = "Selecciona una fecha",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.Gray
             )
+
+            OutlinedButton(
+                onClick = { showDatePicker = true },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = verde
+                )
+            ) {
+                Text("Seleccionar fecha en calendario")
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 reservationDates.forEach { date ->
-                    FilterChip(
-                        selected = selectedDate?.value == date.value,
 
-                        onClick = {
-                            if (selectedDate?.value != date.value) {
+                    val localDate = LocalDate.parse(date.value)
+                    val isSelected = selectedDate?.value == date.value
 
-                                selectedDate = date
-                                selectedHour = null
+                    val dayName = localDate.format(
+                        DateTimeFormatter.ofPattern("EEE", Locale("es", "CL"))
+                    ).replace(".", "").replaceFirstChar { it.titlecase() }
 
-                                reservaViewModel.limpiarHorarios()
+                    val monthName = localDate.format(
+                        DateTimeFormatter.ofPattern("MMM", Locale("es", "CL"))
+                    ).replace(".", "").replaceFirstChar { it.titlecase() }
 
-                                val profesional = selectedProfessional
-                                val servicio = selectedService
-                                val modalidad = selectedModality
+                    val textColor = if (isSelected) Color.White else verde
 
-                                if (
-                                    profesional != null &&
-                                    servicio != null &&
-                                    modalidad != null &&
-                                    token.isNotBlank()
-                                ) {
-                                    reservaViewModel.obtenerHorariosDisponibles(
-                                        token = token,
-                                        profesionalId = profesional.id.toLong(),
-                                        servicioId = servicio.id.toLong(),
-                                        fecha = LocalDate.parse(date.value),
-                                        modalidad = modalidad
-                                    )
-                                }
-                            }
-                        },
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(84.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (isSelected) verde
+                                else Color(0xFFE8EEE4)
+                            )
+                            .clickable {
+                                seleccionarFecha(date)
+                            },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = dayName,
+                            color = textColor,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            softWrap = false
+                        )
 
-                        label = {
-                            Text(date.label)
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
+                        Text(
+                            text = localDate.dayOfMonth.toString(),
+                            color = textColor,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+
+                        Text(
+                            text = monthName,
+                            color = textColor,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
                 }
             }
         }
@@ -430,8 +500,19 @@ val filteredServices = servicios.filter {
                     SummaryRow("Servicio", selectedService!!.nombre)
                     SummaryRow("Modalidad", selectedModality!!)
                     SummaryRow("Duración", "${selectedService!!.duracionMinutos} minutos")
-                    SummaryRow("Fecha", selectedDate!!.label)
+                    SummaryRow(
+                        "Fecha",
+                        LocalDate.parse(selectedDate!!.value)
+                            .format(DateTimeFormatter.ofPattern("dd-MM-yyyy"))
+                    )
                     SummaryRow("Hora", selectedHour!!)
+
+                    HorizontalDivider(color = Color(0xFFE4E7DF))
+
+                    SummaryRow(
+                        "Total a pagar",
+                        "$${String.format(Locale.GERMANY, "%,d", MONTO_SERVICIO)}"
+                    )
                 }
             }
 
@@ -505,6 +586,30 @@ val filteredServices = servicios.filter {
         }
 
         Spacer(modifier = Modifier.height(20.dp))
+    }
+
+    if (showDatePicker) {
+        CalendarDatePicker(
+            selectedDate = selectedDate?.let {
+                LocalDate.parse(it.value)
+            },
+            onDateSelected = { date ->
+                startDate = date
+
+                seleccionarFecha(
+                    ReservationDate(
+                        value = date.toString(),
+                        label = date.format(formatter)
+                            .replaceFirstChar { it.titlecase() }
+                    )
+                )
+
+                showDatePicker = false
+            },
+            onDismiss = {
+                showDatePicker = false
+            }
+        )
     }
 
     // Diálogo de confirmación
