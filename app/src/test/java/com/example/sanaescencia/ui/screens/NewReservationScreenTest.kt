@@ -1,3 +1,4 @@
+
 package com.example.sanaescencia.ui.screens
 
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -20,7 +21,10 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.time.LocalDate
 import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @RunWith(RobolectricTestRunner::class)
 class NewReservationScreenTest {
@@ -34,6 +38,14 @@ class NewReservationScreenTest {
     private val profesional = TestData.profesional
     private val especialidad = TestData.especialidad
     private val servicio = TestData.servicio
+
+    private fun fechaDisponible(dias: Long = 0): LocalDate =
+        LocalDate.now().plusDays(dias)
+
+    private fun etiquetaFecha(fecha: LocalDate): String =
+        fecha.format(
+            DateTimeFormatter.ofPattern("EEE d", Locale("es", "CL"))
+        ).replaceFirstChar { it.titlecase() }
 
     private fun render(
         profesionales: List<Profesional> = listOf(profesional),
@@ -58,15 +70,15 @@ class NewReservationScreenTest {
     }
 
     /**
-     * Flujo comun hasta la seleccion de fecha. Las fechas del selector estan
-     * fijas en produccion (2026-11-17..2026-11-21); se usan tal cual.
+     * Flujo comun hasta la seleccion de fecha.
+     * Se utilizan fechas dinamicas igual que en produccion.
      */
     private fun seleccionarHastaFecha() {
         click("Psicología")
         click("Dra. Ana Soto")
         click("Terapia individual")
         click("Online")
-        click("Mar 17")
+        click(etiquetaFecha(fechaDisponible()))
     }
 
     private fun seleccionarHastaHora() {
@@ -119,7 +131,12 @@ class NewReservationScreenTest {
 
     @Test
     fun `al elegir profesional aparecen los servicios de la especialidad`() {
-        val otroServicio = Servicio(11, "Terapia de pareja", especialidadId = 2, duracionMinutos = 90)
+        val otroServicio = Servicio(
+            11,
+            "Terapia de pareja",
+            especialidadId = 2,
+            duracionMinutos = 90
+        )
 
         render(servicios = listOf(servicio, otroServicio))
         click("Psicología")
@@ -146,7 +163,7 @@ class NewReservationScreenTest {
     }
 
     @Test
-    fun `al elegir modalidad aparecen las fechas fijas de produccion`() {
+    fun `al elegir modalidad aparecen las fechas disponibles`() {
         render()
         click("Psicología")
         click("Dra. Ana Soto")
@@ -155,11 +172,12 @@ class NewReservationScreenTest {
 
         composeRule.onNodeWithText("5. Selecciona fecha y horario").assertExists()
         composeRule.onNodeWithText("Fechas disponibles").assertExists()
-        composeRule.onNodeWithText("Mar 17").assertExists()
-        composeRule.onNodeWithText("Mié 18").assertExists()
-        composeRule.onNodeWithText("Jue 19").assertExists()
-        composeRule.onNodeWithText("Vie 20").assertExists()
-        composeRule.onNodeWithText("Sáb 21").assertExists()
+
+        for (dias in 0L..4L) {
+            composeRule.onNodeWithText(
+                etiquetaFecha(fechaDisponible(dias))
+            ).assertExists()
+        }
     }
 
     @Test
@@ -171,7 +189,7 @@ class NewReservationScreenTest {
         assertEquals("token-prueba", repository.lastHorariosToken)
         assertEquals(5L, repository.lastProfesionalId)
         assertEquals(10L, repository.lastServicioId)
-        assertEquals("2026-11-17", repository.lastFecha?.toString())
+        assertEquals(fechaDisponible().toString(), repository.lastFecha?.toString())
         assertEquals("Online", repository.lastModalidad)
         composeRule.onNodeWithText("09:00").assertExists()
         composeRule.onNodeWithText("10:30").assertExists()
@@ -183,12 +201,15 @@ class NewReservationScreenTest {
         render()
         seleccionarHastaFecha()
 
-        composeRule.onNodeWithText("No hay horarios disponibles para esta fecha.").assertExists()
+        composeRule.onNodeWithText(
+            "No hay horarios disponibles para esta fecha."
+        ).assertExists()
     }
 
     @Test
     fun `un error al consultar horarios muestra su mensaje`() {
-        repository.horariosResult = Result.failure(IllegalStateException("Sin cupo para esa fecha"))
+        repository.horariosResult =
+            Result.failure(IllegalStateException("Sin cupo para esa fecha"))
         render()
         seleccionarHastaFecha()
 
@@ -201,7 +222,9 @@ class NewReservationScreenTest {
         render()
         seleccionarHastaFecha()
 
-        composeRule.onNodeWithText("No se pudieron consultar los horarios.").assertExists()
+        composeRule.onNodeWithText(
+            "No se pudieron consultar los horarios."
+        ).assertExists()
     }
 
     @Test
@@ -251,7 +274,7 @@ class NewReservationScreenTest {
         val request = repository.lastCrearRequest
         assertEquals(5L, request?.profesionalId)
         assertEquals(10L, request?.servicioId)
-        assertEquals("2026-11-17", request?.fecha)
+        assertEquals(fechaDisponible().toString(), request?.fecha)
         assertEquals("09:00", request?.hora)
         assertEquals("Online", request?.modalidad)
         assertEquals(1, repository.pagoCalls)
@@ -260,7 +283,8 @@ class NewReservationScreenTest {
 
     @Test
     fun `si falla la creacion se reactiva el boton de pago`() {
-        repository.crearResult = Result.failure(IllegalStateException("horario tomado"))
+        repository.crearResult =
+            Result.failure(IllegalStateException("horario tomado"))
         render()
         seleccionarHastaHora()
 
@@ -273,7 +297,8 @@ class NewReservationScreenTest {
 
     @Test
     fun `si falla el inicio de pago se reactiva el boton`() {
-        repository.pagoResult = Result.failure(IllegalStateException("webpay caido"))
+        repository.pagoResult =
+            Result.failure(IllegalStateException("webpay caido"))
         render()
         seleccionarHastaHora()
 
@@ -316,7 +341,12 @@ class NewReservationScreenTest {
     @Test
     fun `los horarios se muestran en filas de tres`() {
         repository.horariosResult = Result.success(
-            listOf(LocalTime.of(8, 0), LocalTime.of(9, 0), LocalTime.of(10, 0), LocalTime.of(11, 0))
+            listOf(
+                LocalTime.of(8, 0),
+                LocalTime.of(9, 0),
+                LocalTime.of(10, 0),
+                LocalTime.of(11, 0)
+            )
         )
         render()
         seleccionarHastaFecha()

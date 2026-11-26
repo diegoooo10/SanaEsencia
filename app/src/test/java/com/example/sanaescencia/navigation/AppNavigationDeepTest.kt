@@ -29,12 +29,7 @@ import org.robolectric.RobolectricTestRunner
 import retrofit2.Response
 import java.time.LocalDate
 
-/**
- * Recorre las rutas profundas de [AppNavigation] inyectando APIs falsas en
- * [com.example.sanaescencia.data.remote.RetrofitClient]. Sin la inyeccion la
- * navegacion intentaria usar la red real, por lo que estas rutas quedarian
- * inalcanzables en un entorno offline.
- */
+
 @RunWith(RobolectricTestRunner::class)
 class AppNavigationDeepTest {
 
@@ -169,7 +164,16 @@ class AppNavigationDeepTest {
         click("Dra. Ana Soto")
         click("Terapia individual")
         click("Online")
-        click("Mar 17")
+
+        click(
+            java.time.LocalDate.now().format(
+                java.time.format.DateTimeFormatter.ofPattern(
+                    "EEE d",
+                    java.util.Locale("es", "CL")
+                )
+            ).replaceFirstChar { it.titlecase() }
+        )
+
         click("09:00")
 
         click("Continuar y pagar")
